@@ -1,0 +1,12 @@
+fastapi>=0.110.0
+uvicorn>=0.29.0
+gunicorn>=22.0.0
+sqlalchemy>=2.0.0
+alembic>=1.13
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+email-validator>=2.0.0
+slowapi>=0.1.9
+psycopg2-binary>=2.9.0
+# Optional — only used when SENTRY_DSN is set in env.
+sentry-sdk[fastapi]>=2.0.0

@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Occasions &mdash; London's Event Marketplace, opening soon</title>
+<meta name="description" content="The marketplace for London's themed event suppliers. Join the supplier waitlist &mdash; early suppliers get featured placement at launch and a permanent Founding Supplier badge.">
+
+<!-- Open Graph -->
+<meta property="og:title" content="Occasions &mdash; London's Event Marketplace">
+<meta property="og:description" content="Join the supplier waitlist. Featured launch placement and a Founding Supplier badge for early joiners.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://occasions.london">
+<meta name="twitter:card" content="summary_large_image">
+
+<!-- Defence-in-depth CSP meta tag (also set by middleware in HTTP headers).
+     No inline scripts, no external JS, no external fonts. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+
+<style>
+/* -------------------------------------------------------------------------
+   Brand tokens mirror frontend/css/style.css so this page looks like a
+   first-class citizen of the app, not a separate skin. System font stack
+   matches too — no external fonts, no extra requests, instant render.
+   ------------------------------------------------------------------------- */
+:root {
+  --pink:        #E8A0BF;
+  --pink-light:  #FBF0F5;
+  --pink-dark:   #C47799;
+  --pink-muted:  #F2D4E3;
+  --blue:        #1D2B6B;
+  --blue-light:  #3A4FAD;
+  --gold:        #C49A3A;
+  --gold-light:  #F5E6B8;
+  --gold-accent: #D4A843;
+  --cream:       #FAFAF8;
+  --cream-warm:  #F7F4EF;
+  --dark:        #1A1A2E;
+  --black:       #0D0D17;
+  --white:       #ffffff;
+  --font:        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --radius-sm:   10px;
+  --radius:      16px;
+  --radius-lg:   24px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--black);
+  color: var(--white);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+a { color: var(--gold-accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font-family: inherit; cursor: pointer; }
+
+/* -------------------------------------------------------------------------
+   Hero — same recipe as the main app's home page (frontend/css/style.css
+   .hero block). Black background, radial gradients in pink/blue/gold,
+   gold gradient title with letter-by-letter reveal, gold eyebrow.
+   ------------------------------------------------------------------------- */
+.hero {
+  background: var(--black);
+  color: var(--white);
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(232,160,191,.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 50%, rgba(29,43,107,.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 100%, rgba(196,154,58,.1) 0%, transparent 40%);
+  pointer-events: none;
+}
+.hero-sparkles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 1;
+}
+/* Note: we intentionally do NOT hide sparkles under prefers-reduced-motion.
+   The drift is slow and gentle (not a vestibular trigger). The main app
+   keeps them on for the same reason. */
+.hero-inner {
+  position: relative;
+  z-index: 2;
+  padding: 6rem 1.5rem 4rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--gold-accent);
+  margin-bottom: 1.75rem;
+}
+.hero-eyebrow-dot {
+  width: 6px; height: 6px;
+  background: var(--gold-accent);
+  border-radius: 50%;
+  animation: pulse 2.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50%      { opacity: 1;   transform: scale(1.1); }
+}
+
+.hero-title {
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: .95;
+  margin-bottom: 1.25rem;
+}
+/* Each letter renders with the gold gradient + a stagger animation —
+   identical mechanic to the main app's title. */
+.hero-title-letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.4em);
+  animation: heroLetterReveal .7s var(--ease-out) both;
+  will-change: transform, opacity;
+  background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold-accent) 50%, #B8892F 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+@keyframes heroLetterReveal {
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-title-letter { animation: none; opacity: 1; transform: none; }
+}
+
+.hero-subtitle {
+  font-size: clamp(1rem, 2.2vw, 1.25rem);
+  font-weight: 400;
+  color: rgba(255,255,255,.7);
+  max-width: 560px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.6;
+  letter-spacing: -0.005em;
+}
+
+.hero-ctas {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.95rem 1.75rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 1rem;
+  border: 1.5px solid transparent;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  text-decoration: none;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.btn:hover { text-decoration: none; transform: translateY(-2px); }
+.btn:active { transform: translateY(0); }
+
+/* Frosted / gradient-ring primary — echoes the main app's btn-frosted */
+.btn-primary {
+  background: linear-gradient(135deg, var(--gold-accent) 0%, var(--gold) 100%);
+  color: var(--dark);
+  box-shadow: 0 12px 32px rgba(212, 168, 67, 0.32);
+}
+.btn-primary:hover { box-shadow: 0 16px 40px rgba(212, 168, 67, 0.42); }
+
+.btn-ghost {
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.85);
+  border: 1.5px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(8px);
+}
+.btn-ghost:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--gold-accent);
+  color: var(--gold-accent);
+}
+
+.hero-microcopy {
+  font-size: .85rem;
+  color: rgba(255,255,255,.45);
+}
+.hero-microcopy strong { color: var(--gold-accent); font-weight: 600; }
+
+/* -------------------------------------------------------------------------
+   Why-strip — soft cards on a slightly-lighter section.
+   ------------------------------------------------------------------------- */
+.why {
+  padding: 5rem 1.5rem 4rem;
+  background: linear-gradient(180deg, var(--black) 0%, #14141f 100%);
+  position: relative;
+}
+.why-inner { max-width: 1080px; margin: 0 auto; }
+.section-eyebrow {
+  display: block;
+  font-size: .75rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold-accent);
+  font-weight: 700;
+  margin-bottom: .5rem;
+  text-align: center;
+}
+/* Larger eyebrow variant — used when the eyebrow IS the section heading
+   (no h2 underneath). Keeps the gold uppercase letter-spaced look but
+   gives it the weight of a real title so the lede beneath it reads well. */
+.section-eyebrow-lg {
+  font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+  letter-spacing: .22em;
+  margin-bottom: 1.5rem;
+}
+.section-title {
+  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: center;
+  margin-bottom: 1rem;
+  color: var(--white);
+}
+.why-lede {
+  text-align: center;
+  max-width: 680px;
+  margin: 0 auto;
+  font-size: clamp(1.05rem, 2vw, 1.2rem);
+  line-height: 1.7;
+  color: rgba(255,255,255,0.72);
+}
+
+/* -------------------------------------------------------------------------
+   Footer
+   ------------------------------------------------------------------------- */
+footer {
+  padding: 3rem 1.5rem 2.5rem;
+  text-align: center;
+  font-size: .85rem;
+  color: rgba(255,255,255,0.5);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  background: #14141f;
+}
+footer .footer-brand {
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--white);
+  margin-bottom: .75rem;
+  display: block;
+  letter-spacing: -0.01em;
+}
+footer a { color: var(--gold-accent); margin: 0 .6rem; }
+
+/* -------------------------------------------------------------------------
+   Modal
+   ------------------------------------------------------------------------- */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(13, 13, 23, 0.7);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+.modal-overlay.open { display: flex; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  background: #1a1a2e;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-lg);
+  max-width: 480px;
+  width: 100%;
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 2.25rem 2rem 2rem;
+  position: relative;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.25s var(--ease-out);
+  color: var(--white);
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.modal-close {
+  position: absolute;
+  top: 1rem; right: 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  color: rgba(255,255,255,0.5);
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s ease;
+}
+.modal-close:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--white);
+}
+.modal h2 {
+  font-weight: 700;
+  font-size: 1.6rem;
+  margin-bottom: 0.3rem;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.modal .subtitle {
+  color: rgba(255,255,255,0.6);
+  font-size: .92rem;
+  margin-bottom: 1.75rem;
+}
+
+.form-group { margin-bottom: 1.1rem; }
+.form-group label {
+  display: block;
+  font-size: .82rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  color: rgba(255,255,255,0.9);
+  letter-spacing: 0.01em;
+}
+.form-group label .optional { color: rgba(255,255,255,0.4); font-weight: 400; }
+
+.form-control {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border: 1.5px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius-sm);
+  font-size: .95rem;
+  font-family: inherit;
+  background: rgba(255,255,255,0.04);
+  color: var(--white);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.form-control::placeholder { color: rgba(255,255,255,0.3); }
+.form-control:focus {
+  outline: none;
+  border-color: var(--gold-accent);
+  background: rgba(255,255,255,0.07);
+}
+textarea.form-control { resize: vertical; min-height: 60px; }
+select.form-control {
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23ccc' d='M0 0l5 6 5-6z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  padding-right: 2.2rem;
+}
+select.form-control option {
+  background: #1a1a2e;
+  color: var(--white);
+}
+
+.chip-group { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chip {
+  padding: 0.45rem 0.9rem;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.03);
+  font-size: .85rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+  transition: all 0.15s ease;
+  user-select: none;
+  font-family: inherit;
+}
+.chip:hover {
+  border-color: var(--gold-accent);
+  color: var(--gold-accent);
+}
+.chip.active {
+  background: var(--gold-accent);
+  border-color: var(--gold-accent);
+  color: var(--dark);
+}
+
+.checkbox-row {
+  display: flex; align-items: flex-start; gap: 0.55rem;
+  margin: 1rem 0;
+}
+.checkbox-row input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+  accent-color: var(--gold-accent);
+  width: 16px; height: 16px;
+}
+.checkbox-row label {
+  font-size: .86rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+/* Honeypot — visually + screen-reader hidden, real browsers don't fill. */
+.honeypot {
+  position: absolute !important;
+  left: -9999px !important;
+  width: 1px !important; height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.btn-submit {
+  width: 100%;
+  background: linear-gradient(135deg, var(--gold-accent) 0%, var(--gold) 100%);
+  color: var(--dark);
+  padding: 0.95rem;
+  border: none;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 1rem;
+  margin-top: 0.5rem;
+  box-shadow: 0 12px 28px rgba(212, 168, 67, 0.25);
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.btn-submit:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(212, 168, 67, 0.35); }
+.btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+
+.form-success, .form-error {
+  padding: .9rem 1rem;
+  border-radius: var(--radius-sm);
+  margin-top: 1rem;
+  font-size: .92rem;
+}
+.form-success {
+  background: rgba(212, 168, 67, 0.12);
+  color: var(--gold-light);
+  border: 1px solid rgba(212, 168, 67, 0.3);
+}
+.form-error {
+  background: rgba(232, 160, 191, 0.12);
+  color: var(--pink-light);
+  border: 1px solid rgba(232, 160, 191, 0.3);
+}
+
+.modal-footnote {
+  margin-top: 1rem;
+  font-size: .78rem;
+  color: rgba(255,255,255,0.45);
+  line-height: 1.5;
+}
+.modal-footnote a { color: rgba(255,255,255,0.7); text-decoration: underline; }
+
+/* -------------------------------------------------------------------------
+   Responsive nudges
+   ------------------------------------------------------------------------- */
+@media (max-width: 600px) {
+  .hero-inner { padding: 4rem 1rem 3rem; }
+  .why { padding: 4rem 1rem 3rem; }
+  .modal { padding: 1.75rem 1.25rem 1.5rem; }
+}
+
+/* -------------------------------------------------------------------------
+   Prose modal (used for the Waitlist Privacy Notice)
+   ------------------------------------------------------------------------- */
+.modal.modal-wide { max-width: 640px; }
+.prose {
+  color: rgba(255,255,255,0.78);
+  font-size: .94rem;
+  line-height: 1.65;
+}
+.prose p { margin-bottom: 0.9rem; }
+.prose ul {
+  margin: 0 0 1rem 1.1rem;
+  padding: 0;
+}
+.prose li { margin-bottom: 0.35rem; }
+.prose h3 {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--white);
+  margin: 1.25rem 0 .5rem;
+  letter-spacing: -0.005em;
+}
+.prose strong { color: var(--white); font-weight: 600; }
+.prose a { color: var(--gold-accent); text-decoration: underline; }
+.prose .meta {
+  font-size: .8rem;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 1.25rem;
+  letter-spacing: 0.02em;
+}
+.linkbtn {
+  background: none;
+  border: none;
+  color: var(--gold-accent);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+.linkbtn:hover { color: var(--gold-light); }
+</style>
+</head>
+<body>
+
+<!-- ===================== HERO ===================== -->
+<section class="hero">
+  <canvas class="hero-sparkles" aria-hidden="true"></canvas>
+  <div class="hero-inner">
+    <span class="hero-eyebrow">
+      <span class="hero-eyebrow-dot"></span>
+      Opening in London &middot; Summer 2027
+    </span>
+    <h1 class="hero-title" aria-label="Occasions">
+      <span class="hero-title-letter" aria-hidden="true" style="animation-delay:0ms;">O</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:60ms;">c</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:120ms;">c</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:180ms;">a</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:240ms;">s</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:300ms;">i</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:360ms;">o</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:420ms;">n</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:480ms;">s</span>
+    </h1>
+    <p class="hero-subtitle">
+      London's marketplace for themed event suppliers &mdash; cake artists, decorators, photographers, florists, caterers and more. We're hand-onboarding our launch suppliers this summer.
+    </p>
+    <div class="hero-ctas">
+      <button class="btn btn-primary" data-open="supplier">
+        <span>&#10024;</span><span>Join the supplier waitlist</span>
+      </button>
+      <a href="#why" class="btn btn-ghost">Why Occasions</a>
+    </div>
+    <p class="hero-microcopy">
+      Early suppliers get <strong>featured placement at launch</strong> and a <strong>permanent Founding Supplier badge</strong>.
+    </p>
+  </div>
+</section>
+
+<!-- ===================== WHY ===================== -->
+<!-- Simplified: just the eyebrow (now serving as the section heading) and
+     a single lede paragraph. The card grid was removed per design — the
+     hero already sells the value, this section just gives one honest
+     paragraph to anyone who scrolls. -->
+<section class="why" id="why">
+  <div class="why-inner">
+    <h2 class="section-eyebrow section-eyebrow-lg">Why join early</h2>
+    <p class="why-lede">
+      Most great event suppliers in London never get found. Their work sits below a handful of big accounts that own the algorithm just because they got there first. Occasions levels the field &mdash; bookings come from people who actually want what you do, not from whoever shouted loudest this week.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <span class="footer-brand">Occasions</span>
+  <p>London's themed event marketplace &middot; opening Summer 2027</p>
+  <p style="margin-top: 0.75rem;">
+    <a href="mailto:hello@occasions.london">hello@occasions.london</a>
+    <a href="mailto:privacy@occasions.london">privacy@occasions.london</a>
+    <button type="button" class="linkbtn" data-open="privacy" style="margin: 0 .6rem;">Privacy</button>
+  </p>
+  <p style="margin-top: 1rem; font-size: .78rem; opacity: 0.7;">&copy; <span id="year"></span> Occasions. All rights reserved.</p>
+</footer>
+
+<!-- ===================== SUPPLIER MODAL ===================== -->
+<div class="modal-overlay" id="modal-supplier" role="dialog" aria-labelledby="supplier-title" aria-modal="true">
+  <div class="modal">
+    <button class="modal-close" type="button" aria-label="Close" data-close>&times;</button>
+    <h2 id="supplier-title">Join the waitlist</h2>
+    <p class="subtitle">Five quick questions. We'll be in touch when it's your turn.</p>
+    <form id="form-supplier" novalidate>
+      <!-- Honeypot — real users never see this. Bots fill every input. -->
+      <div class="honeypot" aria-hidden="true">
+        <label for="sup-website">Website (leave empty)</label>
+        <input type="text" id="sup-website" name="website" tabindex="-1" autocomplete="off">
+      </div>
+
+      <div class="form-group">
+        <label for="sup-business">Business name</label>
+        <input type="text" id="sup-business" class="form-control" maxlength="80" required placeholder="e.g. Bella's Balloons">
+      </div>
+
+      <div class="form-group">
+        <label for="sup-category">Category</label>
+        <select id="sup-category" class="form-control" required>
+          <option value="">Choose one&hellip;</option>
+          <option value="caterer">Caterer</option>
+          <option value="decorator">Decorator</option>
+          <option value="photographer">Photographer</option>
+          <option value="cake">Cake artist</option>
+          <option value="florist">Florist</option>
+          <option value="dj">DJ / music</option>
+          <option value="entertainer">Entertainer</option>
+          <option value="venue">Venue</option>
+          <option value="balloon">Balloon artist</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Service area</label>
+        <div class="chip-group" id="sup-areas">
+          <button type="button" class="chip" data-area="central-london">Central</button>
+          <button type="button" class="chip" data-area="north-london">North</button>
+          <button type="button" class="chip" data-area="south-london">South</button>
+          <button type="button" class="chip" data-area="east-london">East</button>
+          <button type="button" class="chip" data-area="west-london">West</button>
+          <button type="button" class="chip" data-area="outside-london">Outside London</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="sup-instagram">Instagram <span class="optional">&mdash; helps us find you</span></label>
+        <input type="text" id="sup-instagram" class="form-control" maxlength="40" placeholder="@yourbusiness" autocapitalize="off" autocomplete="off">
+      </div>
+
+      <div class="form-group">
+        <label for="sup-email">Email</label>
+        <input type="email" id="sup-email" class="form-control" maxlength="200" required placeholder="you@example.com" autocomplete="email">
+      </div>
+
+      <div class="form-group">
+        <label for="sup-feedback">One thing that would make you actually use this? <span class="optional">&mdash; optional</span></label>
+        <textarea id="sup-feedback" class="form-control" maxlength="300" rows="2" placeholder="e.g. weekly bookings without chasing leads"></textarea>
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="sup-ready">
+        <label for="sup-ready">I could onboard within 2 weeks of being accepted.</label>
+      </div>
+
+      <button type="submit" class="btn-submit" id="sup-submit">Join the waitlist</button>
+      <div id="sup-feedback-box"></div>
+      <p class="modal-footnote">
+        By joining, you agree to our <button type="button" class="linkbtn" data-open="privacy">Waitlist Privacy Notice</button>. We'll only email you about your supplier onboarding &mdash; nothing else.
+      </p>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== PRIVACY MODAL ===================== -->
+<!-- Lightweight in-page notice. Pre-launch waitlist only collects a handful
+     of fields, so the heavy multi-section privacy policy used by the main
+     app would over-promise and be harder to keep accurate. UK GDPR Arts 13/14
+     require we tell people what we're collecting, why, how long, and how to
+     get it removed — this notice covers all of that in plain English. -->
+<div class="modal-overlay" id="modal-privacy" role="dialog" aria-labelledby="privacy-title" aria-modal="true">
+  <div class="modal modal-wide">
+    <button class="modal-close" type="button" aria-label="Close" data-close>&times;</button>
+    <h2 id="privacy-title">Waitlist Privacy Notice</h2>
+    <div class="prose">
+      <p class="meta">Last updated: 14 June 2026 &middot; Applies to the supplier waitlist only.</p>
+
+      <p>We're <strong>Occasions</strong>, a pre-launch event marketplace based in London, UK. This short notice explains what we collect when you join the supplier waitlist, why, and what you can do about it. When the marketplace launches you'll be asked to read and accept a full Privacy Policy before you can take bookings &mdash; this one only covers the waitlist.</p>
+
+      <h3>What we collect</h3>
+      <ul>
+        <li>What you give us in the form: business name, category, service area, Instagram handle (optional), email, your answer to the open question, and whether you can onboard within 2 weeks.</li>
+        <li>Automatically, for spam protection: your IP address, your browser's user-agent string, and a timestamp of when you submitted.</li>
+      </ul>
+      <p>That's it. No cookies for tracking, no analytics scripts, no advertising pixels, no third-party trackers on this page.</p>
+
+      <h3>Why we collect it</h3>
+      <ul>
+        <li>To contact you when supplier onboarding opens (the only marketing email we'll send).</li>
+        <li>To prioritise categories &amp; areas where we have the most interest.</li>
+        <li>To stop bots and abusive submissions (the IP + user-agent only).</li>
+      </ul>
+      <p><strong>Legal basis:</strong> your consent (UK GDPR Article 6(1)(a)). You can withdraw it at any time.</p>
+
+      <h3>Who sees it</h3>
+      <p>Only us. We don't sell waitlist data, we don't share it with marketers, and we don't pass it to other suppliers. The data sits on our application server (UK / EU region) and our managed database. When launch is ready we may use a transactional email service (e.g. Resend or similar) to send the launch email &mdash; we'll list any such processor in the full Privacy Policy you accept at sign-up.</p>
+
+      <h3>How long we keep it</h3>
+      <p>Until launch + 60 days. After that we either (a) migrate your row into a real supplier account with your explicit consent, or (b) delete it. If we decide not to launch in your area, we'll delete the row and email you to say so.</p>
+
+      <h3>Your rights (UK GDPR)</h3>
+      <ul>
+        <li><strong>Access</strong> &mdash; ask for a copy of what we hold on you.</li>
+        <li><strong>Correction</strong> &mdash; fix anything that's wrong.</li>
+        <li><strong>Deletion</strong> &mdash; we'll remove your row, no questions asked.</li>
+        <li><strong>Withdraw consent</strong> &mdash; same as deletion for this waitlist.</li>
+        <li><strong>Complaint</strong> &mdash; to the UK Information Commissioner's Office at <a href="https://ico.org.uk" target="_blank" rel="noopener">ico.org.uk</a>.</li>
+      </ul>
+      <p>For any of the above, email <a href="mailto:privacy@occasions.london">privacy@occasions.london</a>. We aim to reply within 5 working days.</p>
+
+      <h3>Minors</h3>
+      <p>The waitlist is for businesses. We don't knowingly collect personal data from under-18s. If you believe we have, email us and we'll remove it.</p>
+
+      <h3>Changes to this notice</h3>
+      <p>If anything material changes before launch we'll update the date at the top and email everyone on the waitlist. Reading this every time you visit is not required.</p>
+    </div>
+    <div style="text-align: right; margin-top: 1.5rem;">
+      <button type="button" class="btn btn-primary" data-close style="padding: 0.6rem 1.4rem;">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cache-bust on every meaningful edit so reviewers always see the latest JS. -->
+<script src="/static/waitlist.js?v=5"></script>
+</body>
+</html>
