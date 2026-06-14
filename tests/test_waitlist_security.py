@@ -60,7 +60,7 @@ def _good_payload(**overrides):
     failures point straight at the security concern they're targeting."""
     base = {
         "business_name": "Bella's Balloons",
-        "category": "balloon",
+        "category": "balloon-artist",
         "service_area": "central-london",
         "instagram_handle": "bellasballoons",
         "feedback": "Weekly bookings without chasing.",
@@ -372,13 +372,12 @@ def test_ready_to_onboard_only_accepts_real_bools(bad_bool):
     assert r.status_code in (201, 422), f"{bad_bool!r}: {r.status_code}"
 
 
-@pytest.mark.parametrize("bad_value", [None, [], {"x": 1}, 12345, ["balloon"]])
+@pytest.mark.parametrize("bad_value", [None, [], {"x": 1}, 12345, ["balloon-artist"]])
 def test_category_only_accepts_strings(bad_value):
     p = _good_payload()
     p["category"] = bad_value
     r = client.post("/api/waitlist/supplier", json=p)
     assert r.status_code == 422, f"{bad_value!r}: {r.status_code}"
-
 
 def test_form_loaded_at_string_does_not_crash():
     """A string in form_loaded_at must not throw — Pydantic should 422 or

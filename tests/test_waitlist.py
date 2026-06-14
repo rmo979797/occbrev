@@ -38,7 +38,7 @@ client = TestClient(app)
 def _supplier_payload(**overrides):
     base = {
         "business_name": "Bella's Balloons",
-        "category": "balloon",
+        "category": "balloon-artist",
         "service_area": "central-london",
         "instagram_handle": "@bellasballoons",
         "feedback": "Weekly bookings without chasing.",
@@ -248,3 +248,106 @@ def test_ip_and_user_agent_captured():
         assert row.user_agent == "WaitlistTestBot/1.0"
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# category_other — free-text label when user picks "Other"
+# ---------------------------------------------------------------------------
+def test_other_category_persists_custom_label():
+    """When the user picks Other and types a label, it's stored verbatim
+    so we can review it and consider adding the category later."""
+    p = _supplier_payload(category="other", category_other="event lighting")
+    r = client.post("/api/waitlist/supplier", json=p)
+    assert r.status_code == 201
+    db = SessionLocal()
+    try:
+        row = db.query(WaitlistSignup).filter(WaitlistSignup.email == p["email"]).first()
+        assert row.category == "other"
+        assert row.category_other == "event lighting"
+    finally:
+        db.close()
+
+
+def test_other_category_label_is_trimmed():
+    p = _supplier_payload(category="other", category_other="   sound &amp; lighting   ")
+    r = client.post("/api/waitlist/supplier", json=p)
+    assert r.status_code == 201
+    db = SessionLocal()
+    try:
+        row = db.query(WaitlistSignup).filter(WaitlistSignup.email == p["email"]).first()
+        assert row.category_other == "sound &amp; lighting"
+    finally:
+        db.close()
+
+
+def test_other_category_label_capped_at_60_chars():
+    p = _supplier_payload(category="other", category_other="x" * 200)
+    r = client.post("/api/waitlist/supplier", json=p)
+    # Pydantic max_length should 422 oversized input.
+    assert r.status_code == 422
+
+
+def test_category_other_silently_dropped_when_category_is_not_other():
+    """Defence-in-depth: even if a tampered payload sets category_other
+    alongside a normal category, we MUST NOT store the free-text \u2014 otherwise
+    a malicious client could smuggle arbitrary strings past the allow-list."""
+    p = _supplier_payload(
+        category="florist",
+        category_other="should never land in the DB",
+    )
+    r = client.post("/api/waitlist/supplier", json=p)
+    assert r.status_code == 201
+    db = SessionLocal()
+    try:
+        row = db.query(WaitlistSignup).filter(WaitlistSignup.email == p["email"]).first()
+        assert row.category == "florist"
+        assert row.category_other is None
+    finally:
+        db.close()
+
+
+def test_other_category_without_label_still_accepted():
+    """If the user picks Other but leaves the text blank (frontend should
+    block this but server is defensive), we still accept the signup \u2014 we
+    just don't get the category hint."""
+    p = _supplier_payload(category="other", category_other=None)
+    r = client.post("/api/waitlist/supplier", json=p)
+    assert r.status_code == 201
+    db = SessionLocal()
+    try:
+        row = db.query(WaitlistSignup).filter(WaitlistSignup.email == p["email"]).first()
+        assert row.category == "other"
+        assert row.category_other is None
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Category allow-list — the new marketplace-aligned slugs
+# ---------------------------------------------------------------------------
+def test_new_marketplace_categories_all_accepted():
+    """Every slug in the dropdown must round-trip cleanly. Catches typo
+    drift between the HTML, the Pydantic allow-list, and the DB."""
+    slugs = [
+        "backdrop-prop-hire", "balloon-artist", "cake-maker", "candy-cart",
+        "caterer", "decorator", "dessert-stylist", "face-painter",
+        "florist", "linen-hire", "neon-sign-hire", "party-favours",
+        "photographer", "other",
+    ]
+    for slug in slugs:
+        p = _supplier_payload(category=slug)
+        if slug == "other":
+            p["category_other"] = "placeholder"
+        r = client.post("/api/waitlist/supplier", json=p)
+        assert r.status_code == 201, f"{slug}: {r.status_code} {r.text}"
+
+
+def test_legacy_pre_marketplace_slugs_rejected():
+    """The old supplier dropdown used short slugs ("balloon", "cake",
+    "dj", "venue"). These should now be rejected so we don't quietly write
+    rows with categories that don't match anything in the marketplace."""
+    for legacy in ["balloon", "cake", "dj", "entertainer", "venue"]:
+        p = _supplier_payload(category=legacy)
+        r = client.post("/api/waitlist/supplier", json=p)
+        assert r.status_code == 422, f"{legacy} should be rejected, got {r.status_code}"
+

@@ -37,7 +37,7 @@ import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.exc import IntegrityError
@@ -67,11 +67,25 @@ def _rate(spec: str) -> str:
 
 # ---------------------------------------------------------------------------
 # Allow-lists. Anything not in these lists is rejected, NOT silently coerced.
-# Keep these in sync with the labels rendered on the landing page.
+# Keep these in sync with the labels rendered on the landing page AND with
+# enums.SupplierCategory in the main marketplace app — the slugs are the
+# kebab-case forms of the canonical labels.
 # ---------------------------------------------------------------------------
 SUPPLIER_CATEGORIES = {
-    "caterer", "decorator", "photographer", "cake", "florist",
-    "dj", "entertainer", "venue", "balloon", "other",
+    "backdrop-prop-hire",
+    "balloon-artist",
+    "cake-maker",
+    "candy-cart",
+    "caterer",
+    "decorator",
+    "dessert-stylist",
+    "face-painter",
+    "florist",
+    "linen-hire",
+    "neon-sign-hire",
+    "party-favours",
+    "photographer",
+    "other",
 }
 SERVICE_AREAS = {
     "central-london", "north-london", "south-london",
@@ -92,6 +106,11 @@ INSTAGRAM_RE = re.compile(r"^[A-Za-z0-9._]{1,30}$")
 class SupplierWaitlistIn(BaseModel):
     business_name: str = Field(min_length=2, max_length=80)
     category: str = Field(min_length=2, max_length=30)
+    # Free-text label captured when the user picks "other". Lets us learn
+    # which categories to add next. Kept short — it's a label, not prose.
+    # Silently nulled when category != "other" so a tampered payload can't
+    # smuggle freeform text into validated rows.
+    category_other: Optional[str] = Field(default=None, max_length=60)
     service_area: str = Field(min_length=2, max_length=30)
     instagram_handle: Optional[str] = Field(default=None, max_length=40)
     feedback: Optional[str] = Field(default=None, max_length=300)
@@ -136,10 +155,21 @@ class SupplierWaitlistIn(BaseModel):
             raise ValueError("invalid instagram handle")
         return v
 
-    @field_validator("business_name", "feedback")
+    @field_validator("business_name", "feedback", "category_other")
     @classmethod
     def _trim(cls, v: Optional[str]) -> Optional[str]:
-        return v.strip() if isinstance(v, str) else v
+        if not isinstance(v, str):
+            return v
+        v = v.strip()
+        return v or None
+
+    @model_validator(mode="after")
+    def _other_only_with_other(self) -> "SupplierWaitlistIn":
+        # If the user didn't pick "other", drop any free-text label — stops
+        # a tampered payload smuggling content past the category allow-list.
+        if self.category != "other":
+            self.category_other = None
+        return self
 
 
 class WaitlistOut(BaseModel):
@@ -212,6 +242,7 @@ def supplier_signup(
     fields = dict(
         business_name=data.business_name,
         category=data.category,
+        category_other=data.category_other,
         service_area=data.service_area,
         instagram_handle=data.instagram_handle,
         feedback=data.feedback,

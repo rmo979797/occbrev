@@ -33,6 +33,10 @@ class WaitlistSignup(Base):
     email = Column(String, nullable=False, index=True)
     business_name = Column(String, nullable=True)
     category = Column(String, nullable=True)
+    # Free-text label captured when category == "other". Stored verbatim
+    # (after server-side trim/length cap) so we can review and decide
+    # whether to add that category as a first-class option later.
+    category_other = Column(String, nullable=True)
     service_area = Column(String, nullable=True)
     instagram_handle = Column(String, nullable=True)
     feedback = Column(Text, nullable=True)

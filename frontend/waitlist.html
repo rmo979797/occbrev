@@ -531,6 +531,120 @@ select.form-control option {
   text-decoration: underline;
 }
 .linkbtn:hover { color: var(--gold-light); }
+
+/* -------------------------------------------------------------------------
+   Utility — used to toggle the conditional "Other" text input on/off.
+   ------------------------------------------------------------------------- */
+.hidden { display: none !important; }
+
+/* -------------------------------------------------------------------------
+   Celebration overlay — full-screen post-signup state
+
+   Replaces the modal's in-place success banner with a takeover that
+   feels like a moment. Same brand palette as the hero. Confetti is a
+   single canvas drawn by waitlist.js (no third-party deps, CSP-clean).
+   Auto-stops after ~6s to save battery on slower phones.
+   ------------------------------------------------------------------------- */
+.celebration-overlay {
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 0%,   rgba(196,154,58,.20) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, rgba(232,160,191,.14) 0%, transparent 55%),
+    radial-gradient(ellipse at 20% 50%,  rgba(29,43,107,.18)  0%, transparent 50%),
+    var(--black);
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  overflow: hidden;
+}
+.celebration-overlay.open { display: flex; animation: celebrationFade .35s var(--ease-out); }
+@keyframes celebrationFade { from { opacity: 0; } to { opacity: 1; } }
+.celebration-confetti {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+.celebration-inner {
+  position: relative;
+  z-index: 2;
+  max-width: 520px;
+  text-align: center;
+  color: var(--white);
+  animation: celebrationLift .55s var(--ease-out) 0.05s both;
+}
+@keyframes celebrationLift {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.success-check {
+  width: 96px; height: 96px;
+  margin: 0 auto 1.75rem;
+  display: block;
+  filter: drop-shadow(0 0 24px rgba(212,168,67,0.35));
+}
+.success-check .check-circle {
+  fill: none;
+  stroke: var(--gold-accent);
+  stroke-width: 3;
+  stroke-dasharray: 226;
+  stroke-dashoffset: 226;
+  animation: drawCircle .55s ease-out .15s forwards;
+}
+.success-check .check-tick {
+  fill: none;
+  stroke: var(--gold-accent);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 75;
+  stroke-dashoffset: 75;
+  animation: drawTick .35s ease-out .65s forwards;
+}
+@keyframes drawCircle { to { stroke-dashoffset: 0; } }
+@keyframes drawTick   { to { stroke-dashoffset: 0; } }
+
+.celebration-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--gold-accent);
+  margin-bottom: 1rem;
+}
+.celebration-title {
+  font-size: clamp(2.5rem, 8vw, 3.75rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 1rem;
+  line-height: 1.05;
+  background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.celebration-lede {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.78);
+  margin-bottom: 2rem;
+}
+.celebration-lede strong { color: var(--gold-light); font-weight: 600; }
+.celebration-close {
+  font-size: .9rem;
+  padding: .75rem 1.8rem;
+}
+@media (max-width: 600px) {
+  .celebration-overlay { padding: 1.5rem 1rem; }
+  .success-check { width: 78px; height: 78px; margin-bottom: 1.25rem; }
+  .celebration-lede { font-size: .98rem; }
+}
 </style>
 </head>
 <body>
@@ -608,17 +722,28 @@ select.form-control option {
         <label for="sup-category">Category</label>
         <select id="sup-category" class="form-control" required>
           <option value="">Choose one&hellip;</option>
+          <option value="backdrop-prop-hire">Backdrop &amp; Prop Hire</option>
+          <option value="balloon-artist">Balloon Artist</option>
+          <option value="cake-maker">Cake Maker</option>
+          <option value="candy-cart">Candy Cart</option>
           <option value="caterer">Caterer</option>
           <option value="decorator">Decorator</option>
-          <option value="photographer">Photographer</option>
-          <option value="cake">Cake artist</option>
+          <option value="dessert-stylist">Dessert Stylist</option>
+          <option value="face-painter">Face Painter</option>
           <option value="florist">Florist</option>
-          <option value="dj">DJ / music</option>
-          <option value="entertainer">Entertainer</option>
-          <option value="venue">Venue</option>
-          <option value="balloon">Balloon artist</option>
-          <option value="other">Other</option>
+          <option value="linen-hire">Linen Hire</option>
+          <option value="neon-sign-hire">Neon Sign Hire</option>
+          <option value="party-favours">Party Favours</option>
+          <option value="photographer">Photographer</option>
+          <option value="other">Other &mdash; tell us</option>
         </select>
+      </div>
+
+      <!-- Conditional: only shown when category=other. Lets us learn which
+           categories we should add next. Hidden by default. -->
+      <div class="form-group hidden" id="sup-category-other-row">
+        <label for="sup-category-other">What kind of supplier? <span class="optional">&mdash; we may add this category</span></label>
+        <input type="text" id="sup-category-other" class="form-control" maxlength="60" placeholder="e.g. event planner, lighting designer" autocomplete="off">
       </div>
 
       <div class="form-group">
@@ -720,7 +845,29 @@ select.form-control option {
   </div>
 </div>
 
+<!-- ===================== CELEBRATION OVERLAY ===================== -->
+<!-- Full-screen post-signup state. Mounted (display:none) on every page
+     load; waitlist.js flips .open after a successful POST. -->
+<div class="celebration-overlay" id="celebration" role="dialog" aria-labelledby="celebration-title" aria-modal="true" aria-hidden="true">
+  <canvas class="celebration-confetti" aria-hidden="true"></canvas>
+  <div class="celebration-inner">
+    <svg class="success-check" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle class="check-circle" cx="40" cy="40" r="36"/>
+      <path class="check-tick" d="M22 42 L36 54 L60 28"/>
+    </svg>
+    <span class="celebration-eyebrow">
+      <span class="hero-eyebrow-dot"></span>
+      You're on the list
+    </span>
+    <h2 class="celebration-title" id="celebration-title">Welcome to Occasions.</h2>
+    <p class="celebration-lede">
+      You're now on the <strong>founding supplier list</strong>. We'll be in touch with onboarding details over the coming weeks &mdash; keep an eye on your inbox (and your spam folder, just in case).
+    </p>
+    <button type="button" class="btn btn-ghost celebration-close" id="celebration-close">Done</button>
+  </div>
+</div>
+
 <!-- Cache-bust on every meaningful edit so reviewers always see the latest JS. -->
-<script src="/static/waitlist.js?v=5"></script>
+<script src="/static/waitlist.js?v=6"></script>
 </body>
 </html>

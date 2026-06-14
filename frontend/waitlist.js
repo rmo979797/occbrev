@@ -247,6 +247,153 @@
   }
 
   /* ============================================================================
+   * Category “Other” — reveal a free-text input when user picks Other so we
+   * can capture which categories we should add next. Hidden by default.
+   * ============================================================================ */
+  function wireCategoryOther() {
+    const cat = document.getElementById('sup-category');
+    const row = document.getElementById('sup-category-other-row');
+    const input = document.getElementById('sup-category-other');
+    if (!cat || !row || !input) return;
+    const sync = () => {
+      if (cat.value === 'other') {
+        row.classList.remove('hidden');
+        input.required = true;
+        // Don't auto-focus on every selection — only when the user actively
+        // chose Other (i.e. via the change event, not initial sync).
+      } else {
+        row.classList.add('hidden');
+        input.required = false;
+        input.value = '';
+      }
+    };
+    cat.addEventListener('change', () => {
+      sync();
+      if (cat.value === 'other') input.focus();
+    });
+    sync();
+  }
+
+  /* ============================================================================
+   * Celebration takeover — confetti + animated tick after successful signup.
+   *
+   * Vanilla canvas, ~140 pieces in brand colours, gentle gravity, auto-stops
+   * after 6s. No third-party deps so CSP `script-src 'self'` stays intact.
+   * ============================================================================ */
+  let _confettiRaf = 0;
+  function launchConfetti() {
+    const canvas = document.querySelector('#celebration .celebration-confetti');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+    function size() {
+      const r = canvas.getBoundingClientRect();
+      const w = Math.max(1, r.width  || window.innerWidth);
+      const h = Math.max(1, r.height || window.innerHeight);
+      canvas.width  = Math.round(w * DPR);
+      canvas.height = Math.round(h * DPR);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      return { w, h };
+    }
+    let { w, h } = size();
+
+    // Brand palette — gold, pink, white plus a hint of deep blue for depth.
+    const colours = ['#D4A843', '#F5E6B8', '#E8A0BF', '#FBF0F5', '#ffffff', '#3A4FAD'];
+    const N = 140;
+    const pieces = [];
+    for (let i = 0; i < N; i++) {
+      pieces.push({
+        x: Math.random() * w,
+        y: -20 - Math.random() * h * 0.6,
+        vx: (Math.random() - 0.5) * 1.6,
+        vy: 1.8 + Math.random() * 2.8,
+        s: 5 + Math.random() * 5,
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 0.28,
+        colour: colours[(Math.random() * colours.length) | 0],
+        shape: Math.random() < 0.55 ? 'rect' : 'circle',
+      });
+    }
+
+    const start = performance.now();
+    function frame(t) {
+      ctx.clearRect(0, 0, w, h);
+      for (const p of pieces) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.018;             // gentle gravity
+        p.rot += p.vrot;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.colour;
+        if (p.shape === 'rect') {
+          ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s * 0.5);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.s * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      if (t - start < 6000) {
+        _confettiRaf = requestAnimationFrame(frame);
+      } else {
+        ctx.clearRect(0, 0, w, h);
+        _confettiRaf = 0;
+      }
+    }
+    _confettiRaf = requestAnimationFrame(frame);
+
+    // Re-fit on resize / orientation change (rAF-debounced).
+    let resizeRaf = 0;
+    window.addEventListener('resize', () => {
+      if (resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        ({ w, h } = size());
+        resizeRaf = 0;
+      });
+    });
+  }
+
+  function showCelebration() {
+    const overlay = document.getElementById('celebration');
+    if (!overlay) return;
+    // Hide any open modal first so the takeover feels like a real moment,
+    // not a stack of dialogs.
+    const open = $('.modal-overlay.open');
+    if (open) closeModal(open);
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    launchConfetti();
+    // Focus the close button for keyboard / screen-reader users.
+    const close = overlay.querySelector('.celebration-close');
+    if (close) requestAnimationFrame(() => close.focus());
+  }
+
+  function hideCelebration() {
+    const overlay = document.getElementById('celebration');
+    if (!overlay) return;
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    if (_confettiRaf) { cancelAnimationFrame(_confettiRaf); _confettiRaf = 0; }
+  }
+
+  function wireCelebration() {
+    const closeBtn = document.getElementById('celebration-close');
+    if (closeBtn) closeBtn.addEventListener('click', hideCelebration);
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      const overlay = document.getElementById('celebration');
+      if (overlay && overlay.classList.contains('open')) hideCelebration();
+    });
+  }
+
+  /* ============================================================================
    * Status helpers (success / error banners inside the modal)
    * ============================================================================ */
   function setStatus(boxId, kind, message) {
@@ -275,6 +422,7 @@
 
       const business = ($('#sup-business').value || '').trim();
       const category = ($('#sup-category').value || '').trim();
+      const categoryOtherRaw = ($('#sup-category-other').value || '').trim();
       const area     = activeChipValue('sup-areas');
       const insta    = ($('#sup-instagram').value || '').trim().replace(/^@/, '');
       const email    = ($('#sup-email').value || '').trim();
@@ -287,6 +435,12 @@
       // source of truth — never trust this branch alone.
       if (!business) return setStatus(statusBox, 'error', 'Tell us your business name.');
       if (!category) return setStatus(statusBox, 'error', 'Pick a category.');
+      if (category === 'other' && !categoryOtherRaw) {
+        return setStatus(statusBox, 'error', 'Tell us what kind of supplier you are.');
+      }
+      if (categoryOtherRaw.length > 60) {
+        return setStatus(statusBox, 'error', 'Keep the category description under 60 characters.');
+      }
       if (!area)     return setStatus(statusBox, 'error', 'Pick a service area.');
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
         return setStatus(statusBox, 'error', 'That email looks off — double-check?');
@@ -304,6 +458,7 @@
           body: JSON.stringify({
             business_name: business,
             category,
+            category_other: category === 'other' ? (categoryOtherRaw || null) : null,
             service_area: area,
             instagram_handle: insta || null,
             email,
@@ -326,7 +481,9 @@
         setStatus(statusBox, 'success', "You're on the list. We'll be in touch when it's your turn.");
         submitBtn.textContent = 'Joined ✓';
         // Disable further submits — server is idempotent but we'd rather
-        // not encourage clicks. Leave the modal open so the user reads it.
+        // not encourage clicks. Show the celebration takeover so the user
+        // gets a moment to enjoy the win.
+        showCelebration();
       } catch (err) {
         setStatus(statusBox, 'error', err.message || 'Network hiccup. Try again?');
         submitBtn.disabled = false;
@@ -344,6 +501,8 @@
     mountHeroSparkles();
     wireModals();
     wireChips('sup-areas');
+    wireCategoryOther();
+    wireCelebration();
     wireSupplierForm();
   }
   // Handle both cases: script loaded before DOMContentLoaded fires, and
