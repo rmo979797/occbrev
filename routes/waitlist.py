@@ -36,7 +36,7 @@ import re
 import time
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -45,6 +45,7 @@ from sqlalchemy.orm import Session
 
 from auth import require_admin
 from database import get_db
+from email_sender import send_waitlist_confirmation
 from models import WaitlistSignup
 
 
@@ -86,6 +87,26 @@ SUPPLIER_CATEGORIES = {
     "party-favours",
     "photographer",
     "other",
+}
+
+# Human-readable label for each category slug. Used in the confirmation
+# email ("We've noted you down as a balloon artist"). Kept beside the
+# allow-list so a new slug forces us to add a label too.
+CATEGORY_LABELS = {
+    "backdrop-prop-hire": "backdrop & prop hire supplier",
+    "balloon-artist": "balloon artist",
+    "cake-maker": "cake maker",
+    "candy-cart": "candy cart supplier",
+    "caterer": "caterer",
+    "decorator": "decorator",
+    "dessert-stylist": "dessert stylist",
+    "face-painter": "face painter",
+    "florist": "florist",
+    "linen-hire": "linen hire supplier",
+    "neon-sign-hire": "neon sign hire supplier",
+    "party-favours": "party favours supplier",
+    "photographer": "photographer",
+    "other": "supplier",
 }
 SERVICE_AREAS = {
     "central-london", "north-london", "south-london",
@@ -225,6 +246,7 @@ def _ack() -> WaitlistOut:
 def supplier_signup(
     request: Request,
     data: SupplierWaitlistIn,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     if _is_bot_submission(data):
@@ -250,6 +272,7 @@ def supplier_signup(
         ip=_client_ip(request),
         user_agent=(request.headers.get("user-agent", "") or "")[:500],
     )
+    is_new = existing is None
     if existing:
         for k, v in fields.items():
             setattr(existing, k, v)
@@ -261,6 +284,24 @@ def supplier_signup(
         # Race against the uq_waitlist_role_email index — another request
         # for the same email landed first. Same ACK, no leak.
         db.rollback()
+        is_new = False  # don't re-send confirmation on race
+
+    # Fire the confirmation email out-of-band. Only for first-time signups
+    # so re-submissions don't spam the user. Background task means a slow
+    # Resend response never blocks the form — the user already saw the
+    # celebration screen.
+    if is_new:
+        label = CATEGORY_LABELS.get(data.category, "supplier")
+        # When category == "other" with custom text, use the user's wording
+        # instead of the generic "supplier" label.
+        if data.category == "other" and data.category_other:
+            label = data.category_other
+        background.add_task(
+            send_waitlist_confirmation,
+            to_email=data.email,
+            business_name=data.business_name,
+            category_label=label,
+        )
     return _ack()
 
 

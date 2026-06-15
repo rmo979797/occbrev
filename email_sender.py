@@ -1,0 +1,261 @@
+"""Transactional email for the waitlist.
+
+Sends a single confirmation email after a successful supplier signup via
+Resend (https://resend.com). The send is fired by the route as a FastAPI
+BackgroundTask so a Resend outage / slow response never blocks the form
+submission. Failures are logged but never raised — the user already saw
+the celebration screen by the time this runs.
+
+Security posture:
+* No user input is interpolated into the HTML without escaping — the
+  business name and email address go through `html.escape` before they
+  hit the template.
+* Resend API key is read from env at send time so a rotated key takes
+  effect on the next dispatch without a restart.
+* In dev / tests (no RESEND_API_KEY), the sender logs to stdout instead
+  of dispatching. Tests stay hermetic and developers can run the form
+  without external creds.
+
+Banner image:
+* If `EMAIL_BANNER_URL` is set, the template uses it as a full-bleed
+  hero `<img>` at the top.
+* If unset (current default until the user uploads a banner), the
+  template renders a CSS-only branded header with the gold wordmark
+  on a dark gradient — looks good in every major email client.
+"""
+from __future__ import annotations
+
+import html
+import logging
+from typing import Optional
+
+from config import settings
+
+logger = logging.getLogger("occasions.email")
+
+# Brand palette mirrored from the landing page. Kept in this file so the
+# email design has no runtime dependency on the frontend CSS.
+_GOLD_LIGHT = "#F5E6B8"
+_GOLD       = "#D4A843"
+_GOLD_DARK  = "#B8892F"
+_BG_DARK    = "#0E0E1A"
+_BG_BLACK   = "#0D0D17"
+_TEXT       = "#FFFFFF"
+_TEXT_MUTED = "rgba(255,255,255,0.72)"
+
+
+def _enabled() -> bool:
+    return bool(settings.RESEND_API_KEY)
+
+
+def send_waitlist_confirmation(
+    *,
+    to_email: str,
+    business_name: str,
+    category_label: Optional[str] = None,
+) -> bool:
+    """Send the supplier confirmation email. Returns True on success or
+    when running in dev-log mode; False on any send failure. Never raises."""
+    subject = "You're on the Occasions founding-supplier list"
+
+    html_body = _render_html(business_name=business_name, category_label=category_label)
+    text_body = _render_text(business_name=business_name, category_label=category_label)
+
+    if not _enabled():
+        # Dev / test mode — log the email so developers know it would have gone.
+        logger.warning(
+            "[email:dev] would send to=%s subject=%s\n--- text ---\n%s",
+            to_email, subject, text_body,
+        )
+        return True
+
+    # Lazy import so test environments without `resend` installed still load.
+    try:
+        import resend  # type: ignore
+    except ImportError:
+        logger.error("resend package not installed; cannot send email to %s", to_email)
+        return False
+
+    resend.api_key = settings.RESEND_API_KEY
+    sender = f"{settings.EMAIL_FROM_NAME} <{settings.EMAIL_FROM}>"
+    params = {
+        "from": sender,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+        "text": text_body,
+    }
+    if settings.EMAIL_REPLY_TO:
+        params["reply_to"] = settings.EMAIL_REPLY_TO
+
+    try:
+        result = resend.Emails.send(params)
+        logger.info("Resend accepted id=%s to=%s", result.get("id"), to_email)
+        return True
+    except Exception as exc:  # noqa: BLE001 — third-party SDK exceptions vary
+        logger.exception("Email send to %s failed: %s", to_email, exc)
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Templates
+# ---------------------------------------------------------------------------
+def _render_text(*, business_name: str, category_label: Optional[str]) -> str:
+    """Plain-text version. Required for deliverability — spam filters
+    penalise HTML-only emails. Kept short and human."""
+    safe_name = business_name.strip() or "there"
+    lines = [
+        f"Hi {safe_name},",
+        "",
+        "Thanks for joining the Occasions founding-supplier waitlist.",
+    ]
+    if category_label:
+        lines.append(f"We've noted you down as a {category_label}.")
+    lines += [
+        "",
+        "Here's what happens next:",
+        "",
+        "  1. We hand-review every supplier — usually within a few days.",
+        "  2. If you're a fit, we'll email you to confirm.",
+        "  3. Closer to launch (Summer 2027) we'll invite you to set up",
+        "     your full profile so everything is polished on day one.",
+        "",
+        "Questions in the meantime? Reply to this email — it goes straight",
+        "to us, not a help desk.",
+        "",
+        "Occasions",
+        "London's marketplace for themed event suppliers",
+        "https://occasions.london",
+        "",
+        "If you didn't sign up, ignore this email and we'll delete your row.",
+        "Privacy notice: https://occasions.london (footer link)",
+    ]
+    return "\n".join(lines)
+
+
+def _render_html(*, business_name: str, category_label: Optional[str]) -> str:
+    """HTML email. Inline styles only — most email clients strip <style>
+    blocks. Table-based layout for the broadest client support
+    (Gmail, Outlook desktop, Apple Mail, Yahoo, Proton)."""
+    safe_name = html.escape(business_name.strip() or "there")
+    safe_category = html.escape(category_label) if category_label else None
+
+    # Header — either the hero image (if EMAIL_BANNER_URL is set) or a
+    # CSS-only branded block. The CSS-only fallback is good-looking enough
+    # to ship immediately; the image upgrade is a one-line env-var change.
+    if settings.EMAIL_BANNER_URL:
+        safe_banner = html.escape(settings.EMAIL_BANNER_URL, quote=True)
+        header = f"""
+        <tr><td style="padding:0;line-height:0;">
+          <img src="{safe_banner}"
+               alt="Occasions"
+               width="600"
+               style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none;" />
+        </td></tr>
+        """.strip()
+    else:
+        header = f"""
+        <tr><td style="background:linear-gradient(135deg,{_BG_BLACK} 0%,{_BG_DARK} 100%);padding:48px 32px 40px 32px;text-align:center;">
+          <div style="font-size:14px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:{_GOLD};margin-bottom:12px;">
+            &middot; Founding Supplier &middot;
+          </div>
+          <div style="font-family:Georgia,'Times New Roman',serif;font-size:44px;font-weight:700;letter-spacing:-0.02em;line-height:1;color:{_GOLD_LIGHT};">
+            Occasions
+          </div>
+        </td></tr>
+        """.strip()
+
+    category_line = (
+        f'<p style="margin:0 0 18px 0;font-size:15px;color:{_TEXT_MUTED};">'
+        f"We've noted you down as a <strong style=\"color:{_GOLD_LIGHT};\">{safe_category}</strong>."
+        "</p>"
+        if safe_category else ""
+    )
+
+    body = f"""
+    <tr><td style="background:{_BG_DARK};padding:40px 36px 32px 36px;color:{_TEXT};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+      <h1 style="margin:0 0 16px 0;font-size:24px;font-weight:700;letter-spacing:-0.01em;color:{_TEXT};">
+        Hi {safe_name},
+      </h1>
+      <p style="margin:0 0 18px 0;font-size:16px;line-height:1.55;color:{_TEXT_MUTED};">
+        Thanks for joining the <strong style="color:{_GOLD_LIGHT};">founding-supplier waitlist</strong>.
+        We're hand-building Occasions to launch in London in Summer 2027 &mdash; and you're now in the queue.
+      </p>
+      {category_line}
+
+      <div style="margin:28px 0 8px 0;padding:24px 24px 20px 24px;background:rgba(255,255,255,0.04);border:1px solid rgba(212,168,67,0.18);border-radius:14px;">
+        <div style="font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:{_GOLD};margin-bottom:14px;">
+          What happens next
+        </div>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <td valign="top" style="width:28px;color:{_GOLD};font-size:15px;font-weight:700;padding:2px 0 14px 0;">1</td>
+            <td style="font-size:15px;line-height:1.55;color:{_TEXT_MUTED};padding-bottom:14px;">
+              We <strong style="color:{_TEXT};">hand-review</strong> every supplier &mdash; usually within a few days.
+            </td>
+          </tr>
+          <tr>
+            <td valign="top" style="width:28px;color:{_GOLD};font-size:15px;font-weight:700;padding:2px 0 14px 0;">2</td>
+            <td style="font-size:15px;line-height:1.55;color:{_TEXT_MUTED};padding-bottom:14px;">
+              If you're a fit, we'll <strong style="color:{_TEXT};">email you to confirm</strong>.
+            </td>
+          </tr>
+          <tr>
+            <td valign="top" style="width:28px;color:{_GOLD};font-size:15px;font-weight:700;padding:2px 0 0 0;">3</td>
+            <td style="font-size:15px;line-height:1.55;color:{_TEXT_MUTED};">
+              Closer to launch we'll invite you to <strong style="color:{_TEXT};">set up your full profile</strong> so everything is polished on day one.
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <p style="margin:24px 0 0 0;font-size:15px;line-height:1.55;color:{_TEXT_MUTED};">
+        Questions in the meantime? Just reply to this email &mdash; it goes straight to us.
+      </p>
+      <p style="margin:24px 0 0 0;font-size:15px;line-height:1.55;color:{_TEXT_MUTED};">
+        See you soon,<br>
+        <strong style="color:{_GOLD_LIGHT};">The Occasions team</strong>
+      </p>
+    </td></tr>
+    """.strip()
+
+    footer = f"""
+    <tr><td style="background:{_BG_BLACK};padding:24px 36px 28px 36px;border-top:1px solid rgba(255,255,255,0.06);text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+      <div style="font-size:12px;color:rgba(255,255,255,0.5);line-height:1.6;">
+        Occasions &middot; London's marketplace for themed event suppliers<br>
+        <a href="https://occasions.london" style="color:{_GOLD};text-decoration:none;">occasions.london</a>
+        &nbsp;&middot;&nbsp;
+        <a href="mailto:privacy@occasions.london" style="color:rgba(255,255,255,0.5);text-decoration:underline;">Privacy &amp; data removal</a>
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.32);margin-top:14px;line-height:1.55;">
+        If you didn't sign up, ignore this email and we'll delete your row. To be removed sooner, email
+        <a href="mailto:privacy@occasions.london" style="color:rgba(255,255,255,0.5);">privacy@occasions.london</a>.
+      </div>
+    </td></tr>
+    """.strip()
+
+    # Outer wrapper — light grey body so the dark card sits on a real
+    # surface in most clients. Gmail / Outlook handle this well.
+    return f"""<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Welcome to Occasions</title>
+</head>
+<body style="margin:0;padding:0;background:#F2F2F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <!-- Preheader: shows in the inbox preview, hidden in the body -->
+  <div style="display:none!important;max-height:0;overflow:hidden;opacity:0;color:transparent;visibility:hidden;mso-hide:all;">
+    You're on the Occasions founding-supplier list. Here's what happens next.
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F2F2F4;padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:{_BG_DARK};border-radius:18px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.15);">
+        {header}
+        {body}
+        {footer}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""

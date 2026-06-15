@@ -10,3 +10,6 @@ slowapi>=0.1.9
 psycopg2-binary>=2.9.0
 # Optional — only used when SENTRY_DSN is set in env.
 sentry-sdk[fastapi]>=2.0.0
+# Transactional email — only dispatches when RESEND_API_KEY is set in env.
+# In dev/tests the email_sender module logs to stdout instead.
+resend>=0.7.0
