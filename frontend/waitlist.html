@@ -132,6 +132,10 @@ button { font-family: inherit; cursor: pointer; }
   letter-spacing: -0.05em;
   line-height: .95;
   margin-bottom: 1.25rem;
+  /* Padding-right compensates for the negative letter-spacing so the
+     gradient-clipped last letter ("s") doesn't get its right edge cropped
+     by the inline-block bounding box. */
+  padding: 0.05em 0.12em 0.08em 0;
 }
 /* Each letter renders with the gold gradient + a stagger animation —
    identical mechanic to the main app's title. */
@@ -146,6 +150,17 @@ button { font-family: inherit; cursor: pointer; }
   -webkit-text-fill-color: transparent;
   background-clip: text;
   color: transparent;
+  /* Tiny vertical padding stops the gradient mask clipping descenders/edges
+     in some Safari + Chrome combos. */
+  padding: 0.04em 0;
+}
+/* The last letter ("s") is a glyph whose visual right edge extends past
+   its inline-block advance width, so without explicit right padding the
+   gradient text-clip cuts off the bottom-right curl. The padding shows up
+   as visual whitespace after the title — which is desirable anyway since
+   we centre the title with no trailing space. */
+.hero-title-letter:last-child {
+  padding-right: 0.12em;
 }
 @keyframes heroLetterReveal {
   to { opacity: 1; transform: translateY(0); }
@@ -299,8 +314,11 @@ footer a { color: var(--gold-accent); margin: 0 .6rem; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .modal {
-  background: #1a1a2e;
-  border: 1px solid rgba(255,255,255,0.1);
+  /* Deep near-black with a subtle blue cast — sits between --black and
+     --dark in the brand token set, makes the gold beam read as a real
+     light source rather than just a coloured border. */
+  background: #0E0E1A;
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius-lg);
   max-width: 480px;
   width: 100%;
@@ -308,7 +326,7 @@ footer a { color: var(--gold-accent); margin: 0 .6rem; }
   overflow-y: auto;
   padding: 2.25rem 2rem 2rem;
   position: relative;
-  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55);
   animation: slideUp 0.25s var(--ease-out);
   color: var(--white);
 }
@@ -318,7 +336,7 @@ footer a { color: var(--gold-accent); margin: 0 .6rem; }
 }
 .modal-close {
   position: absolute;
-  top: 1rem; right: 1rem;
+  top: 0.55rem; right: 0.55rem;
   background: transparent;
   border: none;
   font-size: 1.4rem;
@@ -327,6 +345,7 @@ footer a { color: var(--gold-accent); margin: 0 .6rem; }
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   transition: all 0.15s ease;
+  z-index: 2;
 }
 .modal-close:hover {
   background: rgba(255,255,255,0.08);
@@ -385,7 +404,7 @@ select.form-control {
   padding-right: 2.2rem;
 }
 select.form-control option {
-  background: #1a1a2e;
+  background: #0E0E1A;
   color: var(--white);
 }
 
@@ -640,10 +659,81 @@ select.form-control option {
   font-size: .9rem;
   padding: .75rem 1.8rem;
 }
-@media (max-width: 600px) {
-  .celebration-overlay { padding: 1.5rem 1rem; }
-  .success-check { width: 78px; height: 78px; margin-bottom: 1.25rem; }
-  .celebration-lede { font-size: .98rem; }
+/* -------------------------------------------------------------------------
+   Border beam — a rotating gold/white slice that lights up the perimeter
+   of the supplier modal like a premium card glow.
+
+   Why a shell wrapper? `.modal` has `overflow-y: auto` so the form can
+   scroll on small screens. That clips any pseudo-element trying to render
+   at the border. So we wrap the supplier modal in `.modal-shell` (no
+   overflow), put the beam there as a sibling of the modal, and let it
+   extend a couple of pixels outside the modal's box. The modal's own
+   dark background acts as the inner mask — we never see the conic's
+   centre, only the bright slice peeking out around the rim.
+
+   Animation: we register `--beam-angle` as a CSS custom property so the
+   browser knows how to interpolate it (without `@property` it'd jump
+   from 0deg to 360deg in one frame). We then animate it from 0 to 360
+   and feed it into the conic gradient's `from` keyword. The gradient
+   ROTATES inside the static rectangle, which means corners never poke
+   out — the visible slice just travels around the perimeter.
+
+   `prefers-reduced-motion` disables the rotation so the beam stays a
+   simple static gold ring for visitors who've opted out.
+   ------------------------------------------------------------------------- */
+@property --beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.modal-shell {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  border-radius: var(--radius-lg);
+  /* No overflow:hidden on purpose — the beam needs to peek 2px outside.
+     The modal inside has its own overflow:auto for scrolling content. */
+}
+.border-beam {
+  pointer-events: none;
+  position: absolute;
+  /* Extend slightly outside the modal so the bright slice shows as a
+     1.5px halo at the edge. The modal sits on top with its own dark
+     background and naturally hides the centre of the conic gradient. */
+  inset: -1.5px;
+  border-radius: calc(var(--radius-lg) + 1.5px);
+  z-index: 0;
+  /* Conic with one bright "comet" sweep (~80° wide) plus a long fading
+     tail. The gradient's `from` angle is driven by --beam-angle which
+     waitlist.js animates via requestAnimationFrame — see startBorderBeams.
+     Doing it in JS guarantees motion even on browsers without @property
+     support and on managed browsers that force prefers-reduced-motion. */
+  background: conic-gradient(
+    from var(--beam-angle, 0deg),
+    transparent 0deg,
+    rgba(212, 168, 67, 0.05) 200deg,
+    rgba(212, 168, 67, 0.35) 260deg,
+    rgba(245, 230, 184, 0.85) 310deg,
+    #ffffff 340deg,
+    rgba(212, 168, 67, 0.6) 354deg,
+    transparent 360deg
+  );
+  /* Soft outer halo to give the beam some "presence" beyond the rim. */
+  filter: blur(0.5px);
+}
+@keyframes border-beam-rotate {
+  /* Retained as a fallback hint for browsers with @property support;
+     waitlist.js drives the actual animation in JS for compatibility. */
+  to { --beam-angle: 360deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .border-beam { animation: none; opacity: 0.4; }
+}
+.modal-shell .modal {
+  /* Stack the modal above the rotating beam halo so its dark fill
+     covers the centre of the conic and only the rim shows. */
+  position: relative;
+  z-index: 1;
 }
 </style>
 </head>
@@ -665,7 +755,7 @@ select.form-control option {
     </p>
     <div class="hero-ctas">
       <button class="btn btn-primary" data-open="supplier">
-        <span>&#10024;</span><span>Join the supplier waitlist</span>
+        <span>Join the supplier waitlist</span>
       </button>
       <a href="#why" class="btn btn-ghost">Why Occasions</a>
     </div>
@@ -702,8 +792,10 @@ select.form-control option {
 
 <!-- ===================== SUPPLIER MODAL ===================== -->
 <div class="modal-overlay" id="modal-supplier" role="dialog" aria-labelledby="supplier-title" aria-modal="true">
-  <div class="modal">
-    <button class="modal-close" type="button" aria-label="Close" data-close>&times;</button>
+  <div class="modal-shell">
+    <span class="border-beam" aria-hidden="true"></span>
+    <div class="modal">
+      <button class="modal-close" type="button" aria-label="Close" data-close>&times;</button>
     <h2 id="supplier-title">Join the waitlist</h2>
     <p class="subtitle">Five quick questions. We'll be in touch when it's your turn.</p>
     <form id="form-supplier" novalidate>
@@ -784,6 +876,7 @@ select.form-control option {
         By joining, you agree to our <button type="button" class="linkbtn" data-open="privacy">Waitlist Privacy Notice</button>. We'll only email you about your supplier onboarding &mdash; nothing else.
       </p>
     </form>
+    </div>
   </div>
 </div>
 
@@ -859,15 +952,15 @@ select.form-control option {
       <span class="hero-eyebrow-dot"></span>
       You're on the list
     </span>
-    <h2 class="celebration-title" id="celebration-title">Welcome to Occasions.</h2>
+    <h2 class="celebration-title" id="celebration-title">Welcome to Occasions!</h2>
     <p class="celebration-lede">
-      You're now on the <strong>founding supplier list</strong>. We'll be in touch with onboarding details over the coming weeks &mdash; keep an eye on your inbox (and your spam folder, just in case).
+      Your application is in. We <strong>review every supplier by hand</strong> to keep the marketplace high-quality &mdash; usually within a few days. If you're a fit, we'll email you to confirm and walk you through next steps. Closer to launch we'll invite you to set up your full profile so everything's polished and live on day one.
     </p>
     <button type="button" class="btn btn-ghost celebration-close" id="celebration-close">Done</button>
   </div>
 </div>
 
 <!-- Cache-bust on every meaningful edit so reviewers always see the latest JS. -->
-<script src="/static/waitlist.js?v=6"></script>
+<script src="/static/waitlist.js?v=14"></script>
 </body>
 </html>

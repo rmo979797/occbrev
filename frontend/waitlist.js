@@ -303,10 +303,12 @@
     const colours = ['#D4A843', '#F5E6B8', '#E8A0BF', '#FBF0F5', '#ffffff', '#3A4FAD'];
     const N = 140;
     const pieces = [];
-    for (let i = 0; i < N; i++) {
-      pieces.push({
+    function spawnPiece(seedTop) {
+      // seedTop=true → start above the canvas (used for the initial burst);
+      // seedTop=false → respawn at top so the loop is endless.
+      return {
         x: Math.random() * w,
-        y: -20 - Math.random() * h * 0.6,
+        y: seedTop ? -20 - Math.random() * h * 0.6 : -20 - Math.random() * 40,
         vx: (Math.random() - 0.5) * 1.6,
         vy: 1.8 + Math.random() * 2.8,
         s: 5 + Math.random() * 5,
@@ -314,17 +316,24 @@
         vrot: (Math.random() - 0.5) * 0.28,
         colour: colours[(Math.random() * colours.length) | 0],
         shape: Math.random() < 0.55 ? 'rect' : 'circle',
-      });
+      };
     }
+    for (let i = 0; i < N; i++) pieces.push(spawnPiece(true));
 
-    const start = performance.now();
-    function frame(t) {
+    function frame() {
       ctx.clearRect(0, 0, w, h);
-      for (const p of pieces) {
+      for (let i = 0; i < pieces.length; i++) {
+        const p = pieces[i];
         p.x += p.vx;
         p.y += p.vy;
         p.vy += 0.018;             // gentle gravity
         p.rot += p.vrot;
+        // Recycle pieces that have fallen off-screen — keeps the loop
+        // endless without ever growing the array.
+        if (p.y - p.s > h || p.x < -50 || p.x > w + 50) {
+          pieces[i] = spawnPiece(false);
+          continue;
+        }
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rot);
@@ -338,12 +347,7 @@
         }
         ctx.restore();
       }
-      if (t - start < 6000) {
-        _confettiRaf = requestAnimationFrame(frame);
-      } else {
-        ctx.clearRect(0, 0, w, h);
-        _confettiRaf = 0;
-      }
+      _confettiRaf = requestAnimationFrame(frame);
     }
     _confettiRaf = requestAnimationFrame(frame);
 
@@ -479,7 +483,7 @@
           throw new Error(detail);
         }
         setStatus(statusBox, 'success', "You're on the list. We'll be in touch when it's your turn.");
-        submitBtn.textContent = 'Joined ✓';
+        submitBtn.textContent = 'Joined';
         // Disable further submits — server is idempotent but we'd rather
         // not encourage clicks. Show the celebration takeover so the user
         // gets a moment to enjoy the win.
@@ -488,6 +492,54 @@
         setStatus(statusBox, 'error', err.message || 'Network hiccup. Try again?');
         submitBtn.disabled = false;
         submitBtn.textContent = 'Join the waitlist';
+      }
+    });
+  }
+
+  /* ============================================================================
+   * Border beam — JS-driven rotation
+   *
+   * We previously tried a CSS-only @property + keyframe approach to animate
+   * the conic-gradient's `from` angle, but `@property` is gated behind
+   * Chromium 85+ / Safari 16.4+ AND many corporate browsers force-enable
+   * `prefers-reduced-motion` which would disable the animation outright.
+   *
+   * Driving the angle in JS via requestAnimationFrame is bulletproof: the
+   * conic gradient re-evaluates each frame because we're literally
+   * re-setting its `--beam-angle` custom property. We honour
+   * prefers-reduced-motion explicitly so users who genuinely opted out
+   * still get a static ring. Pauses when the tab is hidden.
+   * ============================================================================ */
+  function startBorderBeams() {
+    const beams = $$('.border-beam');
+    if (!beams.length) return;
+    const reducedMotion = window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion) {
+      // Set a static angle so the ring is still visible (just doesn't rotate).
+      beams.forEach(b => b.style.setProperty('--beam-angle', '0deg'));
+      return;
+    }
+    const DURATION_MS = 4000;
+    let raf = 0;
+    let startTime = null;
+    function frame(t) {
+      if (startTime === null) startTime = t;
+      const angle = ((t - startTime) / DURATION_MS) * 360 % 360;
+      // Setting the variable triggers a repaint of the conic gradient on
+      // every browser back to Chrome 69 / Safari 12.1 / Firefox 65.
+      const value = angle.toFixed(2) + 'deg';
+      for (const b of beams) b.style.setProperty('--beam-angle', value);
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    // Pause when the tab is hidden — saves CPU on background tabs.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      } else if (!raf) {
+        startTime = null;
+        raf = requestAnimationFrame(frame);
       }
     });
   }
@@ -504,6 +556,7 @@
     wireCategoryOther();
     wireCelebration();
     wireSupplierForm();
+    startBorderBeams();
   }
   // Handle both cases: script loaded before DOMContentLoaded fires, and
   // script injected after the document is already complete (some browsers
