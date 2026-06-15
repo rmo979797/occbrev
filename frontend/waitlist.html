@@ -891,7 +891,7 @@ select.form-control option {
     <button class="modal-close" type="button" aria-label="Close" data-close>&times;</button>
     <h2 id="privacy-title">Waitlist Privacy Notice</h2>
     <div class="prose">
-      <p class="meta">Last updated: 14 June 2026 &middot; Applies to the supplier waitlist only.</p>
+      <p class="meta">Last updated: 15 June 2026 &middot; Applies to the supplier waitlist only.</p>
 
       <p>We're <strong>Occasions</strong>, a pre-launch event marketplace based in London, UK. This short notice explains what we collect when you join the supplier waitlist, why, and what you can do about it. When the marketplace launches you'll be asked to read and accept a full Privacy Policy before you can take bookings &mdash; this one only covers the waitlist.</p>
 
@@ -900,7 +900,7 @@ select.form-control option {
         <li>What you give us in the form: business name, category, service area, Instagram handle (optional), email, your answer to the open question, and whether you can onboard within 2 weeks.</li>
         <li>Automatically, for spam protection: your IP address, your browser's user-agent string, and a timestamp of when you submitted.</li>
       </ul>
-      <p>That's it. No cookies for tracking, no analytics scripts, no advertising pixels, no third-party trackers on this page.</p>
+      <p>That's it. We don't run any analytics, advertising, or third-party tracking on this page. See <strong>Cookies</strong> below for the one strictly-necessary cookie our security provider sets.</p>
 
       <h3>Why we collect it</h3>
       <ul>
@@ -911,7 +911,20 @@ select.form-control option {
       <p><strong>Legal basis:</strong> your consent (UK GDPR Article 6(1)(a)). You can withdraw it at any time.</p>
 
       <h3>Who sees it</h3>
-      <p>Only us. We don't sell waitlist data, we don't share it with marketers, and we don't pass it to other suppliers. The data sits on our application server (UK / EU region) and our managed database. When launch is ready we may use a transactional email service (e.g. Resend or similar) to send the launch email &mdash; we'll list any such processor in the full Privacy Policy you accept at sign-up.</p>
+      <p>Only us and our service providers ("processors") below. We don't sell waitlist data, we don't share it with marketers, and we don't pass it to other suppliers.</p>
+      <ul>
+        <li><strong>Railway</strong> (US-based hosting, application server &amp; managed PostgreSQL) &mdash; stores the row.</li>
+        <li><strong>Cloudflare</strong> (CDN, DNS &amp; email routing) &mdash; serves this page and handles inbound email to <code>@occasions.london</code> addresses.</li>
+        <li><strong>Resend</strong> (EU-based transactional email) &mdash; sends your confirmation email and, later, your launch invitation.</li>
+      </ul>
+      <p>Each processor is bound by a Data Processing Agreement that limits what they can do with the data to providing the service.</p>
+
+      <h3>Cookies</h3>
+      <p>This page sets <strong>no cookies of its own</strong> &mdash; no analytics, no advertising, no session cookie. The only cookie you may see is from Cloudflare, our security provider:</p>
+      <ul>
+        <li><code>__cf_bm</code> &mdash; Cloudflare bot-management cookie. Strictly necessary to distinguish humans from automated traffic and block abuse. Expires after 30 minutes of inactivity. No personal data is collected. Consent-exempt under UK PECR Regulation 6(4).</li>
+      </ul>
+      <p>If you'd rather not receive it, you can block cookies for <code>occasions.london</code> in your browser settings &mdash; the waitlist form will still work.</p>
 
       <h3>How long we keep it</h3>
       <p>Until launch + 60 days. After that we either (a) migrate your row into a real supplier account with your explicit consent, or (b) delete it. If we decide not to launch in your area, we'll delete the row and email you to say so.</p>
