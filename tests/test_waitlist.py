@@ -36,14 +36,17 @@ client = TestClient(app)
 
 
 def _supplier_payload(**overrides):
+    nonce = uuid.uuid4().hex[:8]
     base = {
         "business_name": "Bella's Balloons",
         "category": "balloon-artist",
         "service_area": "central-london",
-        "instagram_handle": "@bellasballoons",
+        # Randomised per call so the route's handle-collision defence
+        # doesn't reject the second test that runs.
+        "instagram_handle": f"@bellasballoons_{nonce}",
         "feedback": "Weekly bookings without chasing.",
         "ready_to_onboard": True,
-        "email": f"sup+{uuid.uuid4().hex[:8]}@example.com",
+        "email": f"sup+{nonce}@example.com",
         # Pretend the form was rendered 10 seconds ago — well over the
         # MIN_SUBMIT_SECONDS threshold, so we pass the bot timing check.
         "form_loaded_at": time.time() - 10,
@@ -151,14 +154,16 @@ def test_instagram_handle_strict_charset():
 
 
 def test_instagram_handle_strips_at_sign():
-    email = f"sup+{uuid.uuid4().hex[:8]}@example.com"
-    p = _supplier_payload(email=email, instagram_handle="@goodhandle")
+    nonce = uuid.uuid4().hex[:8]
+    email = f"sup+{nonce}@example.com"
+    handle = f"goodhandle_{nonce}"
+    p = _supplier_payload(email=email, instagram_handle=f"@{handle}")
     r = client.post("/api/waitlist/supplier", json=p)
     assert r.status_code == 201
     db = SessionLocal()
     try:
         row = db.query(WaitlistSignup).filter(WaitlistSignup.email == email).first()
-        assert row.instagram_handle == "goodhandle"
+        assert row.instagram_handle == handle
     finally:
         db.close()
 

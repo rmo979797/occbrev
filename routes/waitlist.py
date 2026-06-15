@@ -31,9 +31,11 @@ Security posture (unauthenticated, internet-facing form):
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
@@ -49,6 +51,7 @@ from email_sender import send_waitlist_confirmation
 from models import WaitlistSignup
 
 
+logger = logging.getLogger("occasions.waitlist")
 router = APIRouter(prefix="/api/waitlist", tags=["Waitlist"])
 
 
@@ -119,6 +122,94 @@ MIN_SUBMIT_SECONDS = 1.5
 
 # Instagram handles: alnum + . + _, length 1-30. Strict, not sanitised.
 INSTAGRAM_RE = re.compile(r"^[A-Za-z0-9._]{1,30}$")
+
+# ---------------------------------------------------------------------------
+# Anti-abuse — defends the Resend reputation and the admin queue.
+#
+# Threat model (what these defend against):
+#  * Email-bombing relay: attacker submits N victim addresses → each victim
+#    gets a confirmation email "from us". Damages deliverability and looks
+#    like spam — Resend can suspend us if reports spike. PER_IP_DAILY cap
+#    is the primary control.
+#  * Disposable-email churn: bulk junk via mailinator/guerrillamail etc.
+#  * Impersonation: bad actor submits a real competitor's Instagram handle
+#    paired with their own email so the admin queue shows misleading rows.
+#
+# Posture: every defence below results in a silent 201 ACK with NO DB write
+# and NO confirmation email. The attacker can't tell which check fired —
+# same response as a real signup. Real abuse attempts are logged loudly so
+# we can review IP / handle patterns in the Railway / Sentry logs.
+# ---------------------------------------------------------------------------
+# Max distinct emails a single IP may register in 24h. Re-submissions of
+# an email already attached to that IP don't count (they're updates).
+# Tuned for: a single office network occasionally signing up a handful of
+# colleagues = fine. A bot spraying thousands of victim emails = blocked.
+# Bumped to a huge number under TESTING=1 so the shared 127.0.0.1 IP
+# across the test suite doesn't trip the cap. Individual tests that want
+# to exercise the limit monkeypatch this constant down.
+PER_IP_DAILY_NEW_EMAILS = 100_000 if _TESTING else 5
+
+# Disposable-email domain blocklist. Kept short and obvious — exhaustive
+# lists exist but go stale; this catches the lazy 80%. Add to it from
+# admin-log review as new patterns appear.
+DISPOSABLE_EMAIL_DOMAINS = {
+    "mailinator.com", "guerrillamail.com", "guerrillamail.net", "guerrillamail.org",
+    "10minutemail.com", "10minutemail.net", "tempmail.com", "temp-mail.org",
+    "throwaway.email", "trashmail.com", "yopmail.com", "fakeinbox.com",
+    "getnada.com", "sharklasers.com", "maildrop.cc", "mintemail.com",
+    "dispostable.com", "mailcatch.com", "spamgourmet.com", "tempinbox.com",
+    "mvrht.net", "discard.email", "33mail.com", "anonbox.net",
+}
+
+
+def _is_disposable_email(email: str) -> bool:
+    """True if email's domain is on the disposable blocklist. Case-insensitive."""
+    if "@" not in email:
+        return False
+    domain = email.rsplit("@", 1)[1].lower().strip()
+    return domain in DISPOSABLE_EMAIL_DOMAINS
+
+
+def _ip_exceeded_daily_quota(db: Session, ip: Optional[str], role: str) -> bool:
+    """True if this IP has already created ``PER_IP_DAILY_NEW_EMAILS`` distinct
+    emails for this role in the last 24h. Re-submissions don't count because
+    they don't create new rows.
+
+    Missing IP (rare — only if Request.client is None AND no XFF) is never
+    blocked; we err on the side of letting real humans through and lean on
+    the other defences (honeypot, timing, slowapi).
+    """
+    if not ip:
+        return False
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    distinct = (
+        db.query(WaitlistSignup.email)
+        .filter(WaitlistSignup.role == role)
+        .filter(WaitlistSignup.ip == ip)
+        .filter(WaitlistSignup.created_at >= cutoff)
+        .distinct()
+        .count()
+    )
+    return distinct >= PER_IP_DAILY_NEW_EMAILS
+
+
+def _handle_taken_by_different_email(
+    db: Session, role: str, handle: Optional[str], email: str
+) -> bool:
+    """True if this Instagram handle is already registered to a DIFFERENT
+    email. Lets the legit "same person updates their submission" path
+    through (same email + same handle) while blocking impersonation
+    attempts (different email submitting an existing handle)."""
+    if not handle:
+        return False
+    return (
+        db.query(WaitlistSignup.id)
+        .filter(WaitlistSignup.role == role)
+        .filter(WaitlistSignup.instagram_handle == handle)
+        .filter(WaitlistSignup.email != email)
+        .first()
+        is not None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +344,37 @@ def supplier_signup(
         # Bot — ACK politely, write nothing.
         return _ack()
 
+    client_ip = _client_ip(request)
+
+    # --- Anti-abuse layer (silent ACK + log on each hit) --------------------
+    # Defends Resend reputation and the admin queue. Every rejection looks
+    # IDENTICAL to a real success to the caller — no info leak about which
+    # check fired or which thresholds exist.
+    if _is_disposable_email(data.email):
+        logger.warning(
+            "waitlist: disposable email blocked ip=%s email=%s",
+            client_ip, data.email,
+        )
+        return _ack()
+
+    if _ip_exceeded_daily_quota(db, client_ip, "supplier"):
+        logger.warning(
+            "waitlist: per-IP daily quota exceeded ip=%s attempted_email=%s",
+            client_ip, data.email,
+        )
+        return _ack()
+
+    if _handle_taken_by_different_email(
+        db, "supplier", data.instagram_handle, data.email
+    ):
+        logger.warning(
+            "waitlist: instagram handle collision (possible impersonation) "
+            "ip=%s handle=%s attempted_email=%s",
+            client_ip, data.instagram_handle, data.email,
+        )
+        return _ack()
+    # -----------------------------------------------------------------------
+
     # Idempotent upsert. We don't want to leak whether the email was
     # already on the list (timing/error responses tell attackers things).
     existing = (
@@ -269,7 +391,7 @@ def supplier_signup(
         instagram_handle=data.instagram_handle,
         feedback=data.feedback,
         ready_to_onboard=data.ready_to_onboard,
-        ip=_client_ip(request),
+        ip=client_ip,
         user_agent=(request.headers.get("user-agent", "") or "")[:500],
     )
     is_new = existing is None

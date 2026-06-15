@@ -57,15 +57,21 @@ client = TestClient(app)
 # ---------------------------------------------------------------------------
 def _good_payload(**overrides):
     """A clean, server-accepted payload. Tests mutate one field at a time so
-    failures point straight at the security concern they're targeting."""
+    failures point straight at the security concern they're targeting.
+
+    Both the email AND the instagram handle are randomised per call so
+    tests don't collide with the anti-impersonation defence in the route
+    (which silently drops new signups whose handle already belongs to a
+    different email)."""
+    nonce = uuid.uuid4().hex[:8]
     base = {
         "business_name": "Bella's Balloons",
         "category": "balloon-artist",
         "service_area": "central-london",
-        "instagram_handle": "bellasballoons",
+        "instagram_handle": f"bellasballoons_{nonce}",
         "feedback": "Weekly bookings without chasing.",
         "ready_to_onboard": True,
-        "email": f"sec+{uuid.uuid4().hex[:8]}@example.com",
+        "email": f"sec+{nonce}@example.com",
         "form_loaded_at": time.time() - 10,
         "website": "",
     }

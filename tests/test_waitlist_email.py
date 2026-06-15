@@ -39,14 +39,17 @@ client = TestClient(app)
 
 
 def _payload(**overrides):
+    nonce = uuid.uuid4().hex[:8]
     base = {
         "business_name": "Bella's Balloons",
         "category": "balloon-artist",
         "service_area": "central-london",
-        "instagram_handle": "bellasballoons",
+        # Randomised per call so the route's handle-collision defence
+        # doesn't reject the second test that runs.
+        "instagram_handle": f"bellasballoons_{nonce}",
         "feedback": None,
         "ready_to_onboard": True,
-        "email": f"email+{uuid.uuid4().hex[:8]}@example.com",
+        "email": f"email+{nonce}@example.com",
         "form_loaded_at": time.time() - 10,
         "website": "",
     }
