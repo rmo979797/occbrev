@@ -69,6 +69,20 @@ def send_waitlist_confirmation(
         )
         return True
 
+    return _dispatch(
+        to_email=to_email, subject=subject, html_body=html_body, text_body=text_body,
+    )
+
+
+def _dispatch(
+    *,
+    to_email: str,
+    subject: str,
+    html_body: Optional[str],
+    text_body: str,
+) -> bool:
+    """Low-level Resend send. Lazy-imports the SDK and catches every error
+    so callers always get a bool, never an exception."""
     # Lazy import so test environments without `resend` installed still load.
     try:
         import resend  # type: ignore
@@ -82,9 +96,10 @@ def send_waitlist_confirmation(
         "from": sender,
         "to": [to_email],
         "subject": subject,
-        "html": html_body,
         "text": text_body,
     }
+    if html_body:
+        params["html"] = html_body
     if settings.EMAIL_REPLY_TO:
         params["reply_to"] = settings.EMAIL_REPLY_TO
 
@@ -95,6 +110,70 @@ def send_waitlist_confirmation(
     except Exception as exc:  # noqa: BLE001 — third-party SDK exceptions vary
         logger.exception("Email send to %s failed: %s", to_email, exc)
         return False
+
+
+def send_admin_signup_notification(
+    *,
+    business_name: str,
+    email: str,
+    category: str,
+    category_other: Optional[str],
+    service_area: str,
+    instagram_handle: Optional[str],
+    feedback: Optional[str],
+    ready_to_onboard: bool,
+    ip: Optional[str],
+) -> bool:
+    """Send a plain-text internal receipt to the operator when a new
+    supplier signs up. Address is read from settings.ADMIN_NOTIFICATION_EMAIL;
+    if that's empty the call is a no-op (returns True so the caller doesn't
+    panic). Never raises.
+
+    Plain-text only — no banner, no styling — because this is for you, not
+    a marketing surface, and plain-text emails always render correctly,
+    never trip spam filters, and quote cleanly when forwarded.
+    """
+    to_email = settings.ADMIN_NOTIFICATION_EMAIL
+    if not to_email:
+        return True  # feature disabled — silent no-op
+
+    # Compact subject line so a glance at the inbox tells you who joined.
+    subject = f"[Waitlist] New supplier: {business_name}"
+
+    category_display = category
+    if category == "other" and category_other:
+        category_display = f"other ({category_other})"
+
+    lines = [
+        "New supplier joined the Occasions waitlist.",
+        "",
+        f"Business:    {business_name}",
+        f"Email:       {email}",
+        f"Category:    {category_display}",
+        f"Area:        {service_area}",
+        f"Instagram:   {('@' + instagram_handle) if instagram_handle else '-'}",
+        f"Ready in 2w: {'yes' if ready_to_onboard else 'no'}",
+        f"IP:          {ip or '-'}",
+        "",
+        "What they told us:",
+        f"  {feedback}" if feedback else "  (no answer)",
+        "",
+        "---",
+        "Admin: https://occasions.london/api/waitlist/admin",
+        "(Replies to this email go to your own inbox, not the supplier.)",
+    ]
+    text_body = "\n".join(lines)
+
+    if not _enabled():
+        logger.warning(
+            "[email:dev] would notify admin to=%s subject=%s\n--- text ---\n%s",
+            to_email, subject, text_body,
+        )
+        return True
+
+    return _dispatch(
+        to_email=to_email, subject=subject, html_body=None, text_body=text_body,
+    )
 
 
 # ---------------------------------------------------------------------------

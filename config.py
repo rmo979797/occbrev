@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     # and point this env var at it.
     EMAIL_BANNER_URL: str = os.environ.get("EMAIL_BANNER_URL", "")
 
+    # Admin notification — internal "new signup" receipt to the operator.
+    # Set ADMIN_NOTIFICATION_EMAIL in Railway to a real inbox (e.g. your
+    # personal Gmail) and you'll get a plain-text receipt the moment any
+    # new supplier joins the waitlist. Leave empty to disable. Re-submissions
+    # of an existing email do NOT trigger a receipt — same logic as the
+    # confirmation email — so you only see genuinely new signups.
+    ADMIN_NOTIFICATION_EMAIL: str = os.environ.get("ADMIN_NOTIFICATION_EMAIL", "")
+
     model_config = {"env_file": ".env"}
 
 

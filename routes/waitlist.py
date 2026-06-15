@@ -47,7 +47,7 @@ from sqlalchemy.orm import Session
 
 from auth import require_admin
 from database import get_db
-from email_sender import send_waitlist_confirmation
+from email_sender import send_admin_signup_notification, send_waitlist_confirmation
 from models import WaitlistSignup
 
 
@@ -423,6 +423,21 @@ def supplier_signup(
             to_email=data.email,
             business_name=data.business_name,
             category_label=label,
+        )
+        # Internal receipt to the operator (if ADMIN_NOTIFICATION_EMAIL is
+        # set). Also background, also non-blocking. Skipped automatically
+        # in dev/test when ADMIN_NOTIFICATION_EMAIL is empty.
+        background.add_task(
+            send_admin_signup_notification,
+            business_name=data.business_name,
+            email=data.email,
+            category=data.category,
+            category_other=data.category_other,
+            service_area=data.service_area,
+            instagram_handle=data.instagram_handle,
+            feedback=data.feedback,
+            ready_to_onboard=data.ready_to_onboard,
+            ip=client_ip,
         )
     return _ack()
 
