@@ -160,6 +160,15 @@ button { font-family: inherit; cursor: pointer; }
      gradient-clipped last letter ("s") doesn't get its right edge cropped
      by the inline-block bounding box. */
   padding: 0.05em 0.12em 0.08em 0;
+  /* Each letter is rendered as an inline-block span. Browsers treat the
+     boundary between inline-block elements as a valid line-break opportunity
+     even when there's no whitespace in the source. On narrow iOS Safari
+     viewports the wordmark was wrapping mid-word ("Oc" / "casions") and the
+     wrapped letter then fell outside .hero's overflow:hidden box, reading
+     visually as a missing 'c'. nowrap keeps "Occasions" on one line; at
+     clamp(3rem) the wordmark is ~200px wide and fits any modern phone after
+     .hero-inner's 1rem side padding. */
+  white-space: nowrap;
 }
 /* Second wordmark line \u2014 small uppercase "LONDON" beneath "Occasions",
    matching the logo's two-line lockup. Same gold family, no gradient,
