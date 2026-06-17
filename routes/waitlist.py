@@ -223,6 +223,12 @@ class SupplierWaitlistIn(BaseModel):
     # Silently nulled when category != "other" so a tampered payload can't
     # smuggle freeform text into validated rows.
     category_other: Optional[str] = Field(default=None, max_length=60)
+    # Optional list of up to 2 additional category slugs. Suppliers often
+    # work across multiple categories (florist + dessert stylist, etc.).
+    # Validated against the same allow-list as ``category``; duplicates
+    # and the primary are silently de-duped server-side so a tampered
+    # payload can't smuggle "other" twice or repeat the primary.
+    secondary_categories: list[str] = Field(default_factory=list, max_length=2)
     service_area: str = Field(min_length=2, max_length=30)
     instagram_handle: Optional[str] = Field(default=None, max_length=40)
     feedback: Optional[str] = Field(default=None, max_length=300)
@@ -275,12 +281,67 @@ class SupplierWaitlistIn(BaseModel):
         v = v.strip()
         return v or None
 
+    @field_validator("secondary_categories", mode="before")
+    @classmethod
+    def _coerce_secondary_list(cls, v):
+        """Tolerate three shapes from the wire:
+          * a real list (modern client)
+          * a single string (legacy or accidental)
+          * None / missing (treat as empty)
+        Anything else is a 422."""
+        if v is None:
+            return []
+        if isinstance(v, str):
+            v = [v] if v else []
+        if not isinstance(v, list):
+            raise ValueError("secondary_categories must be a list")
+        return v
+
+    @field_validator("secondary_categories")
+    @classmethod
+    def _check_secondary_slugs(cls, v: list[str]) -> list[str]:
+        """Normalise + validate each slug. Trims, lowercases, rejects
+        anything outside the allow-list. Empties are dropped silently —
+        the front-end may send blank slots."""
+        cleaned: list[str] = []
+        for raw in v:
+            if not isinstance(raw, str):
+                raise ValueError("invalid secondary category")
+            s = raw.strip().lower()
+            if not s:
+                continue
+            if s not in SUPPLIER_CATEGORIES:
+                raise ValueError("invalid secondary category")
+            cleaned.append(s)
+        return cleaned
+
     @model_validator(mode="after")
-    def _other_only_with_other(self) -> "SupplierWaitlistIn":
-        # If the user didn't pick "other", drop any free-text label — stops
-        # a tampered payload smuggling content past the category allow-list.
+    def _normalise_categories(self) -> "SupplierWaitlistIn":
+        # If the user didn't pick "other" as primary, drop any free-text
+        # label — stops a tampered payload smuggling content past the
+        # category allow-list.
         if self.category != "other":
             self.category_other = None
+        # De-dupe secondaries: remove the primary if it appears there,
+        # collapse repeats, preserve user-chosen order, hard-cap at 2.
+        # All done server-side so a tampered payload can't bypass the cap.
+        seen: set[str] = {self.category}
+        deduped: list[str] = []
+        for slug in self.secondary_categories:
+            if slug in seen:
+                continue
+            seen.add(slug)
+            deduped.append(slug)
+            if len(deduped) >= 2:
+                break
+        self.secondary_categories = deduped
+        # "other" only makes sense as a primary — a freeform slug as a
+        # secondary would have no associated label. Drop silently rather
+        # than 422 so a future UX where the chip is tappable doesn't
+        # surface a confusing error.
+        self.secondary_categories = [
+            s for s in self.secondary_categories if s != "other"
+        ]
         return self
 
 
@@ -387,6 +448,7 @@ def supplier_signup(
         business_name=data.business_name,
         category=data.category,
         category_other=data.category_other,
+        secondary_categories=",".join(data.secondary_categories) or None,
         service_area=data.service_area,
         instagram_handle=data.instagram_handle,
         feedback=data.feedback,
@@ -433,6 +495,7 @@ def supplier_signup(
             email=data.email,
             category=data.category,
             category_other=data.category_other,
+            secondary_categories=list(data.secondary_categories),
             service_area=data.service_area,
             instagram_handle=data.instagram_handle,
             feedback=data.feedback,

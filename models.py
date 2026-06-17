@@ -37,6 +37,11 @@ class WaitlistSignup(Base):
     # (after server-side trim/length cap) so we can review and decide
     # whether to add that category as a first-class option later.
     category_other = Column(String, nullable=True)
+    # Comma-joined slug list of up to 2 additional categories. NULL when
+    # the supplier only operates in their primary. Stored as text (not
+    # an array / JSON) so the schema stays portable across SQLite tests
+    # and Postgres prod, and so it remains greppable with simple LIKE.
+    secondary_categories = Column(String, nullable=True)
     service_area = Column(String, nullable=True)
     instagram_handle = Column(String, nullable=True)
     feedback = Column(Text, nullable=True)

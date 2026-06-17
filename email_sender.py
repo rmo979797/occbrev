@@ -118,6 +118,7 @@ def send_admin_signup_notification(
     email: str,
     category: str,
     category_other: Optional[str],
+    secondary_categories: Optional[list[str]] = None,
     service_area: str,
     instagram_handle: Optional[str],
     feedback: Optional[str],
@@ -143,6 +144,10 @@ def send_admin_signup_notification(
     category_display = category
     if category == "other" and category_other:
         category_display = f"other ({category_other})"
+    if secondary_categories:
+        category_display = (
+            f"{category_display}  +  also: {', '.join(secondary_categories)}"
+        )
 
     lines = [
         "New supplier joined the Occasions waitlist.",

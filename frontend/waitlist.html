@@ -431,6 +431,35 @@ select.form-control option {
   color: var(--dark);
 }
 
+/* Multi-select chip group (category picker). Primary = solid gold,
+   secondaries = gold outline only — visually subordinate so the user
+   instantly knows which is their main category. */
+.chip.primary {
+  background: var(--gold-accent);
+  border-color: var(--gold-accent);
+  color: var(--dark);
+  font-weight: 600;
+}
+.chip.secondary {
+  background: rgba(212,168,67,0.10);
+  border-color: var(--gold-accent);
+  color: var(--gold-accent);
+}
+.chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.chip:disabled:hover {
+  border-color: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.4);
+}
+.form-hint {
+  margin: 0 0 .55rem 0;
+  font-size: .78rem;
+  color: rgba(255,255,255,0.55);
+  line-height: 1.4;
+}
+
 .checkbox-row {
   display: flex; align-items: flex-start; gap: 0.55rem;
   margin: 1rem 0;
@@ -811,28 +840,28 @@ select.form-control option {
       </div>
 
       <div class="form-group">
-        <label for="sup-category">Category</label>
-        <select id="sup-category" class="form-control" required>
-          <option value="">Choose one&hellip;</option>
-          <option value="backdrop-prop-hire">Backdrop &amp; Prop Hire</option>
-          <option value="balloon-artist">Balloon Artist</option>
-          <option value="cake-maker">Cake Maker</option>
-          <option value="candy-cart">Candy Cart</option>
-          <option value="caterer">Caterer</option>
-          <option value="decorator">Decorator</option>
-          <option value="dessert-stylist">Dessert Stylist</option>
-          <option value="face-painter">Face Painter</option>
-          <option value="florist">Florist</option>
-          <option value="linen-hire">Linen Hire</option>
-          <option value="neon-sign-hire">Neon Sign Hire</option>
-          <option value="party-favours">Party Favours</option>
-          <option value="photographer">Photographer</option>
-          <option value="other">Other &mdash; tell us</option>
-        </select>
+        <label>Category</label>
+        <p class="form-hint">Pick your main category. Tap up to 2 more if you cover multiple.</p>
+        <div class="chip-group chip-group-multi" id="sup-categories" data-max="3">
+          <button type="button" class="chip" data-cat="backdrop-prop-hire">Backdrop &amp; Prop Hire</button>
+          <button type="button" class="chip" data-cat="balloon-artist">Balloon Artist</button>
+          <button type="button" class="chip" data-cat="cake-maker">Cake Maker</button>
+          <button type="button" class="chip" data-cat="candy-cart">Candy Cart</button>
+          <button type="button" class="chip" data-cat="caterer">Caterer</button>
+          <button type="button" class="chip" data-cat="decorator">Decorator</button>
+          <button type="button" class="chip" data-cat="dessert-stylist">Dessert Stylist</button>
+          <button type="button" class="chip" data-cat="face-painter">Face Painter</button>
+          <button type="button" class="chip" data-cat="florist">Florist</button>
+          <button type="button" class="chip" data-cat="linen-hire">Linen Hire</button>
+          <button type="button" class="chip" data-cat="neon-sign-hire">Neon Sign Hire</button>
+          <button type="button" class="chip" data-cat="party-favours">Party Favours</button>
+          <button type="button" class="chip" data-cat="photographer">Photographer</button>
+          <button type="button" class="chip" data-cat="other">Other &mdash; tell us</button>
+        </div>
       </div>
 
-      <!-- Conditional: only shown when category=other. Lets us learn which
-           categories we should add next. Hidden by default. -->
+      <!-- Conditional: only shown when "Other" is the primary category. Lets us
+           learn which categories we should add next. Hidden by default. -->
       <div class="form-group hidden" id="sup-category-other-row">
         <label for="sup-category-other">What kind of supplier? <span class="optional">&mdash; we may add this category</span></label>
         <input type="text" id="sup-category-other" class="form-control" maxlength="60" placeholder="e.g. event planner, lighting designer" autocomplete="off">

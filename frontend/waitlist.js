@@ -247,32 +247,101 @@
   }
 
   /* ============================================================================
-   * Category “Other” — reveal a free-text input when user picks Other so we
-   * can capture which categories we should add next. Hidden by default.
+   * Multi-select chip group — category picker.
+   *
+   * UX rules (kept intentionally simple so suppliers never wonder what they
+   * just did):
+   *   - First tap            = PRIMARY (solid gold, bold)
+   *   - 2nd / 3rd tap        = SECONDARY (gold outline)
+   *   - Tap an active chip   = remove it. If you removed the primary, the
+   *                            oldest secondary auto-promotes to primary.
+   *   - Cap of `data-max` (3) selections. When at cap, untapped chips dim
+   *     to communicate "you're full".
+   *
+   * Selection order is stored on the group as a data attribute (CSV of
+   * slugs) so the submit handler can read primary + secondaries without
+   * re-walking the DOM.
    * ============================================================================ */
-  function wireCategoryOther() {
-    const cat = document.getElementById('sup-category');
+  function wireMultiChips(groupId) {
+    const group = document.getElementById(groupId);
+    if (!group) return;
+    const max = Math.max(1, parseInt(group.dataset.max || '3', 10));
+    /** @type {string[]} Ordered selection — first entry is primary. */
+    const selected = [];
+
+    function render() {
+      const isFull = selected.length >= max;
+      $$('.chip', group).forEach(chip => {
+        const slug = chip.dataset.cat || '';
+        const idx = selected.indexOf(slug);
+        chip.classList.remove('primary', 'secondary', 'active');
+        chip.disabled = false;
+        if (idx === 0) {
+          chip.classList.add('primary');
+          chip.setAttribute('aria-pressed', 'true');
+        } else if (idx > 0) {
+          chip.classList.add('secondary');
+          chip.setAttribute('aria-pressed', 'true');
+        } else {
+          chip.setAttribute('aria-pressed', 'false');
+          if (isFull) chip.disabled = true;
+        }
+      });
+      group.dataset.selected = selected.join(',');
+      // Toggle the "Other — tell us" free-text row whenever the primary
+      // changes. Driven from here (not a separate change listener) so the
+      // single source of truth is the selection array.
+      syncCategoryOtherVisibility(selected[0] || '');
+    }
+
+    group.addEventListener('click', e => {
+      const chip = e.target.closest('.chip');
+      if (!chip || chip.disabled) return;
+      const slug = chip.dataset.cat || '';
+      if (!slug) return;
+      const idx = selected.indexOf(slug);
+      if (idx >= 0) {
+        // Deselect. If we removed the primary, the next entry auto-
+        // promotes — splice() already gives us that behaviour for free.
+        selected.splice(idx, 1);
+      } else if (selected.length < max) {
+        selected.push(slug);
+      }
+      render();
+    });
+
+    // Expose a read-only snapshot for the submit handler.
+    group._selected = () => selected.slice();
+    render();
+  }
+
+  /* Drives visibility of the category-other free-text row from outside
+     the chip handler so it stays in sync however the primary was set. */
+  function syncCategoryOtherVisibility(primarySlug) {
     const row = document.getElementById('sup-category-other-row');
     const input = document.getElementById('sup-category-other');
-    if (!cat || !row || !input) return;
-    const sync = () => {
-      if (cat.value === 'other') {
-        row.classList.remove('hidden');
-        input.required = true;
-        // Don't auto-focus on every selection — only when the user actively
-        // chose Other (i.e. via the change event, not initial sync).
-      } else {
-        row.classList.add('hidden');
-        input.required = false;
-        input.value = '';
-      }
-    };
-    cat.addEventListener('change', () => {
-      sync();
-      if (cat.value === 'other') input.focus();
-    });
-    sync();
+    if (!row || !input) return;
+    if (primarySlug === 'other') {
+      row.classList.remove('hidden');
+      input.required = true;
+    } else {
+      row.classList.add('hidden');
+      input.required = false;
+      input.value = '';
+    }
   }
+
+  function selectedCategories(groupId) {
+    const group = document.getElementById(groupId);
+    if (!group || typeof group._selected !== 'function') return [];
+    return group._selected();
+  }
+
+  /* ============================================================================
+   * Category “Other” — visibility is now driven by the category chip group
+   * (see syncCategoryOtherVisibility above). No standalone wire-up needed
+   * since the legacy <select> was retired in favour of multi-select chips.
+   * ============================================================================ */
 
   /* ============================================================================
    * Celebration takeover — confetti + animated tick after successful signup.
@@ -425,7 +494,9 @@
       setStatus(statusBox, null, null);
 
       const business = ($('#sup-business').value || '').trim();
-      const category = ($('#sup-category').value || '').trim();
+      const cats     = selectedCategories('sup-categories');
+      const category = cats[0] || '';
+      const secondaries = cats.slice(1);     // already capped at 2 by max=3
       const categoryOtherRaw = ($('#sup-category-other').value || '').trim();
       const area     = activeChipValue('sup-areas');
       const insta    = ($('#sup-instagram').value || '').trim().replace(/^@/, '');
@@ -438,7 +509,7 @@
       // see fast feedback instead of a generic 422. Server is still the
       // source of truth — never trust this branch alone.
       if (!business) return setStatus(statusBox, 'error', 'Tell us your business name.');
-      if (!category) return setStatus(statusBox, 'error', 'Pick a category.');
+      if (!category) return setStatus(statusBox, 'error', 'Pick at least one category.');
       if (category === 'other' && !categoryOtherRaw) {
         return setStatus(statusBox, 'error', 'Tell us what kind of supplier you are.');
       }
@@ -463,6 +534,7 @@
             business_name: business,
             category,
             category_other: category === 'other' ? (categoryOtherRaw || null) : null,
+            secondary_categories: secondaries,
             service_area: area,
             instagram_handle: insta || null,
             email,
@@ -553,7 +625,7 @@
     mountHeroSparkles();
     wireModals();
     wireChips('sup-areas');
-    wireCategoryOther();
+    wireMultiChips('sup-categories');
     wireCelebration();
     wireSupplierForm();
     startBorderBeams();
