@@ -263,3 +263,120 @@ def test_admin_email_body_contains_secondary_slugs():
     finally:
         settings.RESEND_API_KEY = original_key
         settings.ADMIN_NOTIFICATION_EMAIL = original_admin
+
+
+# ---------------------------------------------------------------------------
+# Confirmation email surfaces secondaries to the supplier
+# ---------------------------------------------------------------------------
+def test_confirmation_email_route_passes_secondary_labels():
+    """The route should resolve secondary slugs to their human labels via
+    CATEGORY_LABELS and pass them through to send_waitlist_confirmation."""
+    p = _payload(
+        category="florist",
+        secondary_categories=["decorator", "dessert-stylist"],
+    )
+    with patch("routes.waitlist.send_waitlist_confirmation") as mock_send:
+        r = client.post("/api/waitlist/supplier", json=p)
+    assert r.status_code == 201
+    assert mock_send.called
+    kwargs = mock_send.call_args.kwargs
+    assert kwargs["category_label"] == "florist"
+    assert kwargs["secondary_category_labels"] == ["decorator", "dessert stylist"]
+
+
+def test_confirmation_email_route_passes_empty_secondary_list_when_solo():
+    """Solo-category supplier still gets the kwarg present, just empty —
+    keeps the contract uniform so the renderer doesn't need a None branch."""
+    p = _payload(category="florist")
+    with patch("routes.waitlist.send_waitlist_confirmation") as mock_send:
+        r = client.post("/api/waitlist/supplier", json=p)
+    assert r.status_code == 201
+    kwargs = mock_send.call_args.kwargs
+    assert kwargs["secondary_category_labels"] == []
+
+
+# ---------------------------------------------------------------------------
+# Template renderer — text and HTML sentence construction
+# ---------------------------------------------------------------------------
+def test_text_sentence_single_category():
+    from email_sender import _render_text
+
+    body = _render_text(
+        business_name="Solo Co",
+        category_label="florist",
+        secondary_category_labels=[],
+    )
+    assert "We've noted you down as a florist." in body
+
+
+def test_text_sentence_two_categories():
+    from email_sender import _render_text
+
+    body = _render_text(
+        business_name="Duo Co",
+        category_label="florist",
+        secondary_category_labels=["decorator"],
+    )
+    assert "We've noted you down across florist and decorator." in body
+
+
+def test_text_sentence_three_categories():
+    from email_sender import _render_text
+
+    body = _render_text(
+        business_name="Trio Co",
+        category_label="florist",
+        secondary_category_labels=["decorator", "dessert stylist"],
+    )
+    assert (
+        "We've noted you down across florist, decorator and dessert stylist."
+        in body
+    )
+
+
+def test_text_sentence_skipped_when_no_primary():
+    """Defensive — if for some reason the route doesn't pass a label
+    (e.g. unknown slug coerced to None), the email simply omits the
+    sentence rather than rendering 'as a None'."""
+    from email_sender import _render_text
+
+    body = _render_text(
+        business_name="Anon",
+        category_label=None,
+        secondary_category_labels=["decorator"],
+    )
+    assert "noted you down" not in body
+
+
+def test_html_sentence_two_categories_both_bold_gold():
+    """All categories — primary and secondaries — should be rendered in
+    the gold accent colour so multi-cat suppliers see their full
+    coverage highlighted."""
+    from email_sender import _render_html, _GOLD_LIGHT
+
+    body = _render_html(
+        business_name="Duo Co",
+        category_label="florist",
+        secondary_category_labels=["decorator"],
+    )
+    # Both labels bolded
+    assert f'<strong style="color:{_GOLD_LIGHT};">florist</strong>' in body
+    assert f'<strong style="color:{_GOLD_LIGHT};">decorator</strong>' in body
+    # And joined naturally
+    assert "We've noted you down across" in body
+    assert "florist</strong> and <strong" in body
+
+
+def test_html_sentence_escapes_user_input_in_secondaries():
+    """Defence in depth — if a future code path were to ever pass a raw
+    user-supplied label as a secondary, it must be HTML-escaped before
+    landing in the rendered email body."""
+    from email_sender import _render_html
+
+    body = _render_html(
+        business_name="Sketchy Co",
+        category_label="florist",
+        secondary_category_labels=["<img src=x onerror=alert(1)>"],
+    )
+    assert "<img src=x" not in body
+    assert "&lt;img src=x" in body

@@ -53,13 +53,22 @@ def send_waitlist_confirmation(
     to_email: str,
     business_name: str,
     category_label: Optional[str] = None,
+    secondary_category_labels: Optional[list[str]] = None,
 ) -> bool:
     """Send the supplier confirmation email. Returns True on success or
     when running in dev-log mode; False on any send failure. Never raises."""
     subject = "You're on the Occasions founding-supplier list"
 
-    html_body = _render_html(business_name=business_name, category_label=category_label)
-    text_body = _render_text(business_name=business_name, category_label=category_label)
+    html_body = _render_html(
+        business_name=business_name,
+        category_label=category_label,
+        secondary_category_labels=secondary_category_labels,
+    )
+    text_body = _render_text(
+        business_name=business_name,
+        category_label=category_label,
+        secondary_category_labels=secondary_category_labels,
+    )
 
     if not _enabled():
         # Dev / test mode — log the email so developers know it would have gone.
@@ -184,7 +193,50 @@ def send_admin_signup_notification(
 # ---------------------------------------------------------------------------
 # Templates
 # ---------------------------------------------------------------------------
-def _render_text(*, business_name: str, category_label: Optional[str]) -> str:
+def _join_natural(items: list[str]) -> str:
+    """Render a list as a human sentence fragment: ``a`` / ``a and b`` /
+    ``a, b and c``. Used for the category sentence so an email reads like
+    a person wrote it, not a switch statement."""
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+def _category_sentence(
+    primary: Optional[str],
+    secondaries: Optional[list[str]],
+) -> Optional[str]:
+    """Build the 'We've noted you down…' sentence based on how many
+    categories the supplier picked.
+
+    * 0 (no primary): None — caller should skip the line entirely.
+    * 1 primary:           "We've noted you down as a <primary>."
+    * 1 primary + 1+:      "We've noted you down across <primary>, <s1> and <s2>."
+
+    'Across' (not 'as a') in the multi-cat case avoids the awkward
+    article mismatch ("as a florist, decorator and dessert stylist" reads
+    fine in speech but adds a beat the eye trips on; 'across' makes the
+    structure self-explanatory).
+    """
+    if not primary:
+        return None
+    extras = [s for s in (secondaries or []) if s]
+    if not extras:
+        return f"We've noted you down as a {primary}."
+    all_labels = [primary, *extras]
+    return f"We've noted you down across {_join_natural(all_labels)}."
+
+
+def _render_text(
+    *,
+    business_name: str,
+    category_label: Optional[str],
+    secondary_category_labels: Optional[list[str]] = None,
+) -> str:
     """Plain-text version. Required for deliverability — spam filters
     penalise HTML-only emails. Kept short and human."""
     safe_name = business_name.strip() or "there"
@@ -193,8 +245,9 @@ def _render_text(*, business_name: str, category_label: Optional[str]) -> str:
         "",
         "Thanks for joining the Occasions founding-supplier waitlist.",
     ]
-    if category_label:
-        lines.append(f"We've noted you down as a {category_label}.")
+    sentence = _category_sentence(category_label, secondary_category_labels)
+    if sentence:
+        lines.append(sentence)
     lines += [
         "",
         "Here's what happens next:",
@@ -217,12 +270,20 @@ def _render_text(*, business_name: str, category_label: Optional[str]) -> str:
     return "\n".join(lines)
 
 
-def _render_html(*, business_name: str, category_label: Optional[str]) -> str:
+def _render_html(
+    *,
+    business_name: str,
+    category_label: Optional[str],
+    secondary_category_labels: Optional[list[str]] = None,
+) -> str:
     """HTML email. Inline styles only — most email clients strip <style>
     blocks. Table-based layout for the broadest client support
     (Gmail, Outlook desktop, Apple Mail, Yahoo, Proton)."""
     safe_name = html.escape(business_name.strip() or "there")
-    safe_category = html.escape(category_label) if category_label else None
+    safe_primary = html.escape(category_label) if category_label else None
+    safe_secondaries = [
+        html.escape(s) for s in (secondary_category_labels or []) if s
+    ]
 
     # Header — either the hero image (if EMAIL_BANNER_URL is set) or a
     # CSS-only branded block. The CSS-only fallback is good-looking enough
@@ -249,12 +310,29 @@ def _render_html(*, business_name: str, category_label: Optional[str]) -> str:
         </td></tr>
         """.strip()
 
-    category_line = (
-        f'<p style="margin:0 0 18px 0;font-size:15px;color:{_TEXT_MUTED};">'
-        f"We've noted you down as a <strong style=\"color:{_GOLD_LIGHT};\">{safe_category}</strong>."
-        "</p>"
-        if safe_category else ""
-    )
+    # Category sentence — single or multi. Each label gets the gold
+    # accent so multi-category suppliers see all their categories
+    # highlighted, not just the primary.
+    if safe_primary:
+        gold = _GOLD_LIGHT
+        primary_html = f'<strong style="color:{gold};">{safe_primary}</strong>'
+        if not safe_secondaries:
+            sentence_html = f"We've noted you down as a {primary_html}."
+        else:
+            highlighted = [primary_html] + [
+                f'<strong style="color:{gold};">{s}</strong>'
+                for s in safe_secondaries
+            ]
+            sentence_html = (
+                f"We've noted you down across {_join_natural(highlighted)}."
+            )
+        category_line = (
+            f'<p style="margin:0 0 18px 0;font-size:15px;color:{_TEXT_MUTED};">'
+            f"{sentence_html}"
+            "</p>"
+        )
+    else:
+        category_line = ""
 
     body = f"""
     <tr><td style="background:{_BG_DARK};padding:40px 36px 32px 36px;color:{_TEXT};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">

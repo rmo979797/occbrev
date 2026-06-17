@@ -480,11 +480,19 @@ def supplier_signup(
         # instead of the generic "supplier" label.
         if data.category == "other" and data.category_other:
             label = data.category_other
+        # Secondaries can never be "other" (stripped server-side) so a
+        # straight CATEGORY_LABELS lookup is enough. Slug order is the
+        # user's selection order — preserved end-to-end.
+        secondary_labels = [
+            CATEGORY_LABELS.get(slug, slug)
+            for slug in data.secondary_categories
+        ]
         background.add_task(
             send_waitlist_confirmation,
             to_email=data.email,
             business_name=data.business_name,
             category_label=label,
+            secondary_category_labels=secondary_labels,
         )
         # Internal receipt to the operator (if ADMIN_NOTIFICATION_EMAIL is
         # set). Also background, also non-blocking. Skipped automatically
