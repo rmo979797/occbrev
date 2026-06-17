@@ -229,7 +229,14 @@ class SupplierWaitlistIn(BaseModel):
     # and the primary are silently de-duped server-side so a tampered
     # payload can't smuggle "other" twice or repeat the primary.
     secondary_categories: list[str] = Field(default_factory=list, max_length=2)
-    service_area: str = Field(min_length=2, max_length=30)
+    # Service areas the supplier is willing to work in. Always a list —
+    # the before-validator coerces a single string (legacy single-area
+    # clients) into a one-item list for backwards compatibility. Stored
+    # in the DB as a comma-joined slug string on the singular
+    # ``service_area`` column (no migration needed; the column has always
+    # been an opaque text field). Max 6 matches the number of chips on
+    # the form, so a tampered payload can't bloat the cell.
+    service_area: list[str] = Field(min_length=1, max_length=6)
     instagram_handle: Optional[str] = Field(default=None, max_length=40)
     feedback: Optional[str] = Field(default=None, max_length=300)
     ready_to_onboard: bool = False
@@ -253,13 +260,45 @@ class SupplierWaitlistIn(BaseModel):
             raise ValueError("invalid category")
         return v
 
+    @field_validator("service_area", mode="before")
+    @classmethod
+    def _coerce_area_list(cls, v):
+        """Tolerate three shapes from the wire:
+          * a real list (modern multi-area client)
+          * a single string (legacy single-area client) — coerced to [v]
+          * None / missing — raises (the field is required)"""
+        if v is None:
+            return v   # let Field(min_length=1) reject it
+        if isinstance(v, str):
+            return [v] if v else []
+        if not isinstance(v, list):
+            raise ValueError("service_area must be a list of slugs")
+        return v
+
     @field_validator("service_area")
     @classmethod
-    def _check_area(cls, v: str) -> str:
-        v = v.strip().lower()
-        if v not in SERVICE_AREAS:
-            raise ValueError("invalid service area")
-        return v
+    def _check_areas(cls, v: list[str]) -> list[str]:
+        """Normalise + validate each area slug, de-dupe while preserving
+        the user's tap order. Empties are dropped silently — the front-end
+        may send blank slots. An unknown slug is rejected, not silently
+        coerced, so client bugs surface immediately."""
+        seen: set[str] = set()
+        cleaned: list[str] = []
+        for raw in v:
+            if not isinstance(raw, str):
+                raise ValueError("invalid service area")
+            s = raw.strip().lower()
+            if not s:
+                continue
+            if s not in SERVICE_AREAS:
+                raise ValueError("invalid service area")
+            if s in seen:
+                continue
+            seen.add(s)
+            cleaned.append(s)
+        if not cleaned:
+            raise ValueError("pick at least one service area")
+        return cleaned
 
     @field_validator("instagram_handle")
     @classmethod
@@ -449,7 +488,10 @@ def supplier_signup(
         category=data.category,
         category_other=data.category_other,
         secondary_categories=",".join(data.secondary_categories) or None,
-        service_area=data.service_area,
+        # Areas are stored as a comma-joined slug string on the singular
+        # 'service_area' column (legacy schema, no migration needed).
+        # Admin queries that want to filter by area should use LIKE.
+        service_area=",".join(data.service_area),
         instagram_handle=data.instagram_handle,
         feedback=data.feedback,
         ready_to_onboard=data.ready_to_onboard,
@@ -504,7 +546,7 @@ def supplier_signup(
             category=data.category,
             category_other=data.category_other,
             secondary_categories=list(data.secondary_categories),
-            service_area=data.service_area,
+            service_areas=list(data.service_area),
             instagram_handle=data.instagram_handle,
             feedback=data.feedback,
             ready_to_onboard=data.ready_to_onboard,

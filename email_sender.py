@@ -128,7 +128,7 @@ def send_admin_signup_notification(
     category: str,
     category_other: Optional[str],
     secondary_categories: Optional[list[str]] = None,
-    service_area: str,
+    service_areas: list[str],
     instagram_handle: Optional[str],
     feedback: Optional[str],
     ready_to_onboard: bool,
@@ -158,13 +158,26 @@ def send_admin_signup_notification(
             f"{category_display}  +  also: {', '.join(secondary_categories)}"
         )
 
+    # Areas: show all picked, comma-separated. If they ticked every London
+    # zone, flag it as 'all London' to save the operator a moment of
+    # counting. "Outside London" is treated as a separate signal and never
+    # auto-collapsed.
+    london_zones = {"central-london", "north-london", "south-london",
+                    "east-london", "west-london"}
+    picked = set(service_areas)
+    if london_zones.issubset(picked):
+        extras = sorted(picked - london_zones)
+        area_display = "all London" + (f" + {', '.join(extras)}" if extras else "")
+    else:
+        area_display = ", ".join(service_areas) if service_areas else "-"
+
     lines = [
         "New supplier joined the Occasions waitlist.",
         "",
         f"Business:    {business_name}",
         f"Email:       {email}",
         f"Category:    {category_display}",
-        f"Area:        {service_area}",
+        f"Area:        {area_display}",
         f"Instagram:   {('@' + instagram_handle) if instagram_handle else '-'}",
         f"Ready in 2w: {'yes' if ready_to_onboard else 'no'}",
         f"IP:          {ip or '-'}",
@@ -290,22 +303,21 @@ def _render_html(
     # looking enough to ship immediately; the image upgrade is a one-line
     # env-var change.
     #
-    # When the env var is set, we treat the asset as a logo (not a full-
-    # bleed banner) — centred, max ~260px wide, sitting on the same dark
-    # gradient as the fallback so the rest of the email blends seamlessly.
-    # The "Founding Supplier" eyebrow stays above it for context regardless
-    # of which header variant renders.
+    # When the env var is set, the logo IS the header — we let it command
+    # the top of the email without competing typography (no eyebrow, no
+    # wordmark text). The logo already contains the wordmark, so anything
+    # else above or below would be redundant. Sized at 320px (max 70%) so
+    # it dominates without looking blown-up; a thin gold hairline under
+    # it signals "founding-supplier moment" while staying visually quiet.
     if settings.EMAIL_BANNER_URL:
         safe_banner = html.escape(settings.EMAIL_BANNER_URL, quote=True)
         header = f"""
-        <tr><td style="background:linear-gradient(135deg,{_BG_BLACK} 0%,{_BG_DARK} 100%);padding:36px 32px 24px 32px;text-align:center;">
-          <div style="font-size:14px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:{_GOLD};margin-bottom:18px;">
-            &middot; Founding Supplier &middot;
-          </div>
+        <tr><td style="background:linear-gradient(135deg,{_BG_BLACK} 0%,{_BG_DARK} 100%);padding:32px 24px 28px 24px;text-align:center;">
           <img src="{safe_banner}"
                alt="Occasions London"
-               width="240"
-               style="display:inline-block;width:240px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;" />
+               width="320"
+               style="display:inline-block;width:320px;max-width:70%;height:auto;border:0;outline:none;text-decoration:none;" />
+          <div style="margin:14px auto 0 auto;width:48px;height:1px;background:{_GOLD};opacity:0.7;line-height:0;font-size:0;">&nbsp;</div>
         </td></tr>
         """.strip()
     else:

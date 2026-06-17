@@ -96,7 +96,7 @@ def test_no_op_when_admin_email_not_configured(monkeypatch):
     with patch("email_sender._dispatch") as mock_dispatch:
         ok = email_sender.send_admin_signup_notification(
             business_name="Test", email="a@b.com", category="caterer",
-            category_other=None, service_area="central-london",
+            category_other=None, service_areas=["central-london"],
             instagram_handle=None, feedback=None, ready_to_onboard=False, ip=None,
         )
     assert ok is True
@@ -114,7 +114,7 @@ def test_dev_mode_logs_when_admin_email_set_but_no_api_key(monkeypatch, caplog):
         ok = email_sender.send_admin_signup_notification(
             business_name="DevCo", email="user@example.com",
             category="caterer", category_other=None,
-            service_area="north-london", instagram_handle="devco",
+            service_areas=["north-london"], instagram_handle="devco",
             feedback="hi", ready_to_onboard=True, ip="203.0.113.1",
         )
     assert ok is True
@@ -136,7 +136,7 @@ def test_notification_body_includes_category_other_label(monkeypatch):
         email_sender.send_admin_signup_notification(
             business_name="LightCo", email="a@b.com",
             category="other", category_other="event lighting",
-            service_area="east-london", instagram_handle=None,
+            service_areas=["east-london"], instagram_handle=None,
             feedback=None, ready_to_onboard=False, ip="1.2.3.4",
         )
     text_body = mock_dispatch.call_args.kwargs["text_body"]
@@ -156,7 +156,7 @@ def test_notification_body_handles_optional_fields(monkeypatch):
         email_sender.send_admin_signup_notification(
             business_name="MinCo", email="a@b.com",
             category="caterer", category_other=None,
-            service_area="south-london", instagram_handle=None,
+            service_areas=["south-london"], instagram_handle=None,
             feedback=None, ready_to_onboard=False, ip=None,
         )
     text_body = mock_dispatch.call_args.kwargs["text_body"]
@@ -191,7 +191,7 @@ def test_notification_failure_returns_false_never_raises(monkeypatch):
 
     result = email_sender.send_admin_signup_notification(
         business_name="X", email="a@b.com", category="caterer",
-        category_other=None, service_area="west-london",
+        category_other=None, service_areas=["west-london"],
         instagram_handle=None, feedback=None, ready_to_onboard=False, ip=None,
     )
     assert result is False  # logged failure, not a raised exception

@@ -42,11 +42,15 @@
 
     const DPR = Math.min(window.devicePixelRatio || 1, 2);
     // Brand palette as rgba prefixes — alpha appended per-frame so each
-    // particle twinkles independently without string churn.
+    // particle twinkles independently without string churn. Aligned to
+    // the logo's gold-on-black palette (IMG_1797): the previous pink
+    // accent was dropped because it didn't appear anywhere in the brand
+    // mark. Two warm-gold tones + a warm cream highlight gives enough
+    // variation for the twinkle to read as "shimmer" rather than monochrome.
     const colours = [
-      'rgba(255,200,225,', // bright pink
-      'rgba(255,225,160,', // bright gold
-      'rgba(255,255,255,', // warm white
+      'rgba(245,230,184,', // gold highlight (matches --gold-light)
+      'rgba(212,168,67,',  // ribbon gold     (matches --gold-accent)
+      'rgba(250,247,232,', // warm cream
     ];
     const COUNT = 120;
     const particles = [];
@@ -266,21 +270,32 @@
     const group = document.getElementById(groupId);
     if (!group) return;
     const max = Math.max(1, parseInt(group.dataset.max || '3', 10));
-    /** @type {string[]} Ordered selection — first entry is primary. */
+    /** Flat mode = all selected chips render identically (no primary /
+     *  secondary distinction). Used for service areas, where every
+     *  selection is equal. data-flat="1" on the group enables it. */
+    const flat = group.dataset.flat === '1';
+    /** @type {string[]} Ordered selection — first entry is primary (only
+     *  meaningful in non-flat mode). */
     const selected = [];
 
     function render() {
       const isFull = selected.length >= max;
       $$('.chip', group).forEach(chip => {
-        const slug = chip.dataset.cat || '';
+        const slug = chip.dataset.cat || chip.dataset.area || '';
         const idx = selected.indexOf(slug);
         chip.classList.remove('primary', 'secondary', 'active');
         chip.disabled = false;
-        if (idx === 0) {
-          chip.classList.add('primary');
-          chip.setAttribute('aria-pressed', 'true');
-        } else if (idx > 0) {
-          chip.classList.add('secondary');
+        if (idx >= 0) {
+          if (flat) {
+            // All equal — same solid-gold style as the legacy single-
+            // select chip group, so the visual language for areas is
+            // unchanged from a returning user's perspective.
+            chip.classList.add('active');
+          } else if (idx === 0) {
+            chip.classList.add('primary');
+          } else {
+            chip.classList.add('secondary');
+          }
           chip.setAttribute('aria-pressed', 'true');
         } else {
           chip.setAttribute('aria-pressed', 'false');
@@ -288,16 +303,19 @@
         }
       });
       group.dataset.selected = selected.join(',');
-      // Toggle the "Other — tell us" free-text row whenever the primary
-      // changes. Driven from here (not a separate change listener) so the
-      // single source of truth is the selection array.
-      syncCategoryOtherVisibility(selected[0] || '');
+      // Only the category group drives the "Other" free-text row — keep
+      // that linkage scoped to the group that actually offers an Other
+      // chip, so wiring a flat group (e.g. areas) doesn't accidentally
+      // clobber it.
+      if (!flat) {
+        syncCategoryOtherVisibility(selected[0] || '');
+      }
     }
 
     group.addEventListener('click', e => {
       const chip = e.target.closest('.chip');
       if (!chip || chip.disabled) return;
-      const slug = chip.dataset.cat || '';
+      const slug = chip.dataset.cat || chip.dataset.area || '';
       if (!slug) return;
       const idx = selected.indexOf(slug);
       if (idx >= 0) {
@@ -310,9 +328,16 @@
       render();
     });
 
-    // Expose a read-only snapshot for the submit handler.
+    // Expose a read-only snapshot for the submit handler. Used by
+    // selectedCategories() / selectedChips() (both names alias this).
     group._selected = () => selected.slice();
     render();
+  }
+
+  function selectedChips(groupId) {
+    const group = document.getElementById(groupId);
+    if (!group || typeof group._selected !== 'function') return [];
+    return group._selected();
   }
 
   /* Drives visibility of the category-other free-text row from outside
@@ -332,9 +357,7 @@
   }
 
   function selectedCategories(groupId) {
-    const group = document.getElementById(groupId);
-    if (!group || typeof group._selected !== 'function') return [];
-    return group._selected();
+    return selectedChips(groupId);
   }
 
   /* ============================================================================
@@ -368,8 +391,12 @@
     }
     let { w, h } = size();
 
-    // Brand palette — gold, pink, white plus a hint of deep blue for depth.
-    const colours = ['#D4A843', '#F5E6B8', '#E8A0BF', '#FBF0F5', '#ffffff', '#3A4FAD'];
+    // Brand palette — aligned to the logo (IMG_1797). Three gold tones
+    // (light highlight → ribbon mid-tone → shadow), warm cream, ivory,
+    // and a single deep-warm-black piece for contrast and depth. No
+    // pink, no blue — the previous palette mixed accents that don't
+    // appear in the brand mark.
+    const colours = ['#F5E6B8', '#D4A843', '#B8892F', '#FAFAF8', '#F7F4EF', '#ffffff', '#0E0B07'];
     const N = 140;
     const pieces = [];
     function spawnPiece(seedTop) {
@@ -498,7 +525,7 @@
       const category = cats[0] || '';
       const secondaries = cats.slice(1);     // already capped at 2 by max=3
       const categoryOtherRaw = ($('#sup-category-other').value || '').trim();
-      const area     = activeChipValue('sup-areas');
+      const area     = selectedChips('sup-areas');
       const insta    = ($('#sup-instagram').value || '').trim().replace(/^@/, '');
       const email    = ($('#sup-email').value || '').trim();
       const feedback = ($('#sup-feedback').value || '').trim();
@@ -516,7 +543,7 @@
       if (categoryOtherRaw.length > 60) {
         return setStatus(statusBox, 'error', 'Keep the category description under 60 characters.');
       }
-      if (!area)     return setStatus(statusBox, 'error', 'Pick a service area.');
+      if (!area.length) return setStatus(statusBox, 'error', 'Pick at least one area you work in.');
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
         return setStatus(statusBox, 'error', 'That email looks off — double-check?');
       }
@@ -624,7 +651,10 @@
     if (yearEl) yearEl.textContent = String(new Date().getFullYear());
     mountHeroSparkles();
     wireModals();
-    wireChips('sup-areas');
+    // Service areas — multi-select with flat styling (all selections
+    // equal, no primary/secondary distinction).
+    wireMultiChips('sup-areas');
+    // Categories — multi-select with primary + secondary distinction.
     wireMultiChips('sup-categories');
     wireCelebration();
     wireSupplierForm();

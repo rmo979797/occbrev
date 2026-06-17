@@ -245,7 +245,7 @@ def test_admin_email_body_contains_secondary_slugs():
                 category="florist",
                 category_other=None,
                 secondary_categories=["decorator", "dessert-stylist"],
-                service_area="central-london",
+                service_areas=["central-london"],
                 instagram_handle="multico",
                 feedback=None,
                 ready_to_onboard=True,

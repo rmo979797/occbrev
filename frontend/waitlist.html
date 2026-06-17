@@ -26,19 +26,31 @@
    matches too — no external fonts, no extra requests, instant render.
    ------------------------------------------------------------------------- */
 :root {
+  /* Brand palette — derived from the official logo (IMG_1797).
+     Deep warm-leaning black (no blue tint) + honey-gold ribbon family.
+     The pink and blue tokens are retained ONLY for the sparkle/confetti
+     fallbacks (gracefully ignored where they no longer appear); new
+     surfaces should use the gold family exclusively. */
   --pink:        #E8A0BF;
   --pink-light:  #FBF0F5;
   --pink-dark:   #C47799;
   --pink-muted:  #F2D4E3;
   --blue:        #1D2B6B;
   --blue-light:  #3A4FAD;
-  --gold:        #C49A3A;
-  --gold-light:  #F5E6B8;
-  --gold-accent: #D4A843;
+  /* Gold family — matches the logo gradient (light highlight → ribbon
+     mid-tone → shadow). The logo uses warm honey tones, not cool
+     champagne — these hex values are sampled from the ribbon. */
+  --gold:        #B8892F;   /* shadow tone in the ribbon */
+  --gold-light:  #F5E6B8;   /* highlight on the ribbon's curl */
+  --gold-accent: #D4A843;   /* main ribbon mid-tone — the brand gold */
   --cream:       #FAFAF8;
   --cream-warm:  #F7F4EF;
-  --dark:        #1A1A2E;
-  --black:       #0D0D17;
+  /* Deep warm black — matches the logo's background (which is a near-
+     black with a soft warm radial vignette, NOT the cool #1A1A2E
+     midnight-blue we used before). Reads as 'black' to the eye but
+     leaves room for the gold to feel warm rather than alien. */
+  --dark:        #0E0B07;
+  --black:       #050402;
   --white:       #ffffff;
   --font:        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
@@ -81,10 +93,13 @@ button { font-family: inherit; cursor: pointer; }
   content: '';
   position: absolute;
   inset: 0;
+  /* Single soft warm-gold halo behind the logo — mirrors the same centre-
+     glow vignette baked into the official logo file (IMG_1797). Removed
+     the previous pink + blue radials: they didn't appear anywhere in the
+     brand mark and were diluting the gold-on-black signature. */
   background:
-    radial-gradient(ellipse at 20% 50%, rgba(232,160,191,.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 50%, rgba(29,43,107,.2) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 100%, rgba(196,154,58,.1) 0%, transparent 40%);
+    radial-gradient(ellipse at 50% 45%, rgba(212,168,67,0.16) 0%, rgba(212,168,67,0.05) 28%, transparent 60%),
+    radial-gradient(ellipse at 50% 100%, rgba(184,137,47,0.10) 0%, transparent 55%);
   pointer-events: none;
 }
 .hero-sparkles {
@@ -127,16 +142,50 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .hero-title {
+  /* Serif to mirror the logo's typography (the wordmark is a thin
+     transitional serif). Using a web-safe Georgia / Times stack so the
+     page renders identically without a webfont download \u2014 critical
+     for the brand to feel consistent on first paint, before any custom
+     font loads. */
+  font-family: Georgia, 'Times New Roman', 'Times', serif;
   font-size: clamp(3rem, 8vw, 6rem);
-  font-weight: 700;
-  letter-spacing: -0.05em;
+  /* Regular weight — mirrors the logo's thin serif. Georgia doesn't
+     ship a true light, so 400 is the lightest we get without pulling
+     in a webfont; reads as 'restrained serif' versus the previous bold. */
+  font-weight: 400;
+  letter-spacing: -0.02em;   /* gentler than the previous -0.05em; serifs need air */
   line-height: .95;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.25rem;    /* tighter \u2014 the "London" sub-line follows immediately */
   /* Padding-right compensates for the negative letter-spacing so the
      gradient-clipped last letter ("s") doesn't get its right edge cropped
      by the inline-block bounding box. */
   padding: 0.05em 0.12em 0.08em 0;
 }
+/* Second wordmark line \u2014 small uppercase "LONDON" beneath "Occasions",
+   matching the logo's two-line lockup. Same gold family, no gradient,
+   no animation: it's a quiet supporting line, not a stage performer. */
+.hero-title-sub {
+  font-family: Georgia, 'Times New Roman', 'Times', serif;
+  font-size: clamp(0.85rem, 1.4vw, 1.1rem);
+  letter-spacing: .42em;     /* matches the spaced "L O N D O N" feel of the logo */
+  text-transform: uppercase;
+  color: var(--gold-accent);
+  margin-bottom: 1.5rem;
+  /* Slight indent because the letter-spacing pushes the optical centre
+     right; we offset half a tracking step to recentre. */
+  padding-left: .42em;
+  opacity: 0;
+  animation: heroLetterReveal .7s var(--ease-out) .65s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-title-sub { animation: none; opacity: 1; }
+}
+/* Brand-logo hero variant — reserved for a future swap to the raster
+   logo image. Currently unused (the typographic "Occasions / LONDON"
+   lockup is the brand expression on the page). Kept here as a comment
+   pointer so future-me knows the class name exists if we want to flip
+   back to an image-based hero. See git history commit 054dbb9 for the
+   prior implementation. */
 /* Each letter renders with the gold gradient + a stagger animation —
    identical mechanic to the main app's title. */
 .hero-title-letter {
@@ -236,7 +285,9 @@ button { font-family: inherit; cursor: pointer; }
    ------------------------------------------------------------------------- */
 .why {
   padding: 5rem 1.5rem 4rem;
-  background: linear-gradient(180deg, var(--black) 0%, #14141f 100%);
+  /* Warm-dark gradient — same temperature as the logo background, no
+     blue cast. */
+  background: linear-gradient(180deg, var(--black) 0%, #14110b 100%);
   position: relative;
 }
 .why-inner { max-width: 1080px; margin: 0 auto; }
@@ -284,7 +335,9 @@ footer {
   font-size: .85rem;
   color: rgba(255,255,255,0.5);
   border-top: 1px solid rgba(255,255,255,0.08);
-  background: #14141f;
+  /* Warm-dark — matches the .why gradient endpoint above so the page
+     flows from hero black → why warm-dark → footer warm-dark seamlessly. */
+  background: #14110b;
 }
 footer .footer-brand {
   font-weight: 700;
@@ -301,7 +354,9 @@ footer a { color: var(--gold-accent); margin: 0 .6rem; }
    ------------------------------------------------------------------------- */
 .modal-overlay {
   position: fixed; inset: 0;
-  background: rgba(13, 13, 23, 0.7);
+  /* Warm near-black backdrop — drops the previous blue tint so the
+     overlay reads as a darkened brand surface, not a separate colour. */
+  background: rgba(8, 6, 3, 0.74);
   backdrop-filter: blur(8px);
   display: none;
   align-items: center;
@@ -314,10 +369,11 @@ footer a { color: var(--gold-accent); margin: 0 .6rem; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .modal {
-  /* Deep near-black with a subtle blue cast — sits between --black and
-     --dark in the brand token set, makes the gold beam read as a real
-     light source rather than just a coloured border. */
-  background: #0E0E1A;
+  /* Deep warm near-black — sits between --black and --dark in the brand
+     token set, matches the warm undertone of the logo background, and
+     makes the gold beam read as a real light source rather than just a
+     coloured border. */
+  background: #0F0B07;
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius-lg);
   max-width: 480px;
@@ -404,7 +460,7 @@ select.form-control {
   padding-right: 2.2rem;
 }
 select.form-control option {
-  background: #0E0E1A;
+  background: #0F0B07;
   color: var(--white);
 }
 
@@ -595,10 +651,13 @@ select.form-control option {
    ------------------------------------------------------------------------- */
 .celebration-overlay {
   position: fixed; inset: 0;
+  /* Triple warm-gold radial halo — drops the previous pink + blue
+     accents that didn't match the logo. Three intensities of gold give
+     enough depth to read as a 'moment' without competing colours. */
   background:
-    radial-gradient(ellipse at 50% 0%,   rgba(196,154,58,.20) 0%, transparent 55%),
-    radial-gradient(ellipse at 50% 100%, rgba(232,160,191,.14) 0%, transparent 55%),
-    radial-gradient(ellipse at 20% 50%,  rgba(29,43,107,.18)  0%, transparent 50%),
+    radial-gradient(ellipse at 50% 0%,   rgba(212,168,67,.22) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, rgba(184,137,47,.14) 0%, transparent 55%),
+    radial-gradient(ellipse at 20% 50%,  rgba(245,230,184,.08) 0%, transparent 55%),
     var(--black);
   z-index: 200;
   display: none;
@@ -776,9 +835,10 @@ select.form-control option {
       <span class="hero-eyebrow-dot"></span>
       Opening in London &middot; Summer 2027
     </span>
-    <h1 class="hero-title" aria-label="Occasions">
+    <h1 class="hero-title" aria-label="Occasions London">
       <span class="hero-title-letter" aria-hidden="true" style="animation-delay:0ms;">O</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:60ms;">c</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:120ms;">c</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:180ms;">a</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:240ms;">s</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:300ms;">i</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:360ms;">o</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:420ms;">n</span><span class="hero-title-letter" aria-hidden="true" style="animation-delay:480ms;">s</span>
     </h1>
+    <div class="hero-title-sub" aria-hidden="true">London</div>
     <p class="hero-subtitle">
       London's marketplace for themed event suppliers &mdash; cake artists, decorators, photographers, florists, caterers and more. We're hand-onboarding our launch suppliers this summer.
     </p>
@@ -868,8 +928,9 @@ select.form-control option {
       </div>
 
       <div class="form-group">
-        <label>Service area</label>
-        <div class="chip-group" id="sup-areas">
+        <label>Where you typically work</label>
+        <p class="form-hint">Tap all that apply.</p>
+        <div class="chip-group chip-group-multi" id="sup-areas" data-max="6" data-flat="1">
           <button type="button" class="chip" data-area="central-london">Central</button>
           <button type="button" class="chip" data-area="north-london">North</button>
           <button type="button" class="chip" data-area="south-london">South</button>
