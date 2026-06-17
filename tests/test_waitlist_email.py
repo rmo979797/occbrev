@@ -206,7 +206,12 @@ def test_text_template_is_plaintext_only():
 
 def test_banner_url_appears_in_html_when_set(monkeypatch):
     """When EMAIL_BANNER_URL is configured, the template should use it as
-    an <img> tag; the CSS-only header should NOT render."""
+    an <img> tag; the CSS-only typographic wordmark should NOT render
+    (the supplier-provided logo replaces it).
+
+    Both branches keep the 'Founding Supplier' eyebrow for context — it's
+    common to both header variants — so the discriminator is the gold
+    serif "Occasions" wordmark, which only appears in the fallback."""
     monkeypatch.setattr(
         email_sender.settings, "EMAIL_BANNER_URL", "https://cdn.example/hero.png"
     )
@@ -214,7 +219,8 @@ def test_banner_url_appears_in_html_when_set(monkeypatch):
         business_name="DevCo", category_label="caterer"
     )
     assert 'src="https://cdn.example/hero.png"' in html
-    assert "Founding Supplier" not in html  # CSS fallback's "&middot; Founding Supplier &middot;" line
+    # Banner branch: no Georgia serif wordmark block
+    assert "Georgia,'Times New Roman'" not in html
 
 
 def test_css_fallback_renders_when_no_banner_url(monkeypatch):
@@ -226,7 +232,10 @@ def test_css_fallback_renders_when_no_banner_url(monkeypatch):
     )
     assert "Founding Supplier" in html
     assert "Occasions" in html
-    assert "<img" not in html.split("Occasions")[0]  # no banner above wordmark
+    # No <img> at the top — the gold serif wordmark is what readers see.
+    assert "<img" not in html.split("Occasions")[0]
+    # The Georgia-stack wordmark is the discriminator vs the banner branch.
+    assert "Georgia,'Times New Roman'" in html
 
 
 def test_business_name_falls_back_to_friendly_default():

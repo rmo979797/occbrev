@@ -285,17 +285,27 @@ def _render_html(
         html.escape(s) for s in (secondary_category_labels or []) if s
     ]
 
-    # Header — either the hero image (if EMAIL_BANNER_URL is set) or a
-    # CSS-only branded block. The CSS-only fallback is good-looking enough
-    # to ship immediately; the image upgrade is a one-line env-var change.
+    # Header — either the supplier-uploaded logo (if EMAIL_BANNER_URL is
+    # set) or a CSS-only branded block. The CSS-only fallback is good-
+    # looking enough to ship immediately; the image upgrade is a one-line
+    # env-var change.
+    #
+    # When the env var is set, we treat the asset as a logo (not a full-
+    # bleed banner) — centred, max ~260px wide, sitting on the same dark
+    # gradient as the fallback so the rest of the email blends seamlessly.
+    # The "Founding Supplier" eyebrow stays above it for context regardless
+    # of which header variant renders.
     if settings.EMAIL_BANNER_URL:
         safe_banner = html.escape(settings.EMAIL_BANNER_URL, quote=True)
         header = f"""
-        <tr><td style="padding:0;line-height:0;">
+        <tr><td style="background:linear-gradient(135deg,{_BG_BLACK} 0%,{_BG_DARK} 100%);padding:36px 32px 24px 32px;text-align:center;">
+          <div style="font-size:14px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:{_GOLD};margin-bottom:18px;">
+            &middot; Founding Supplier &middot;
+          </div>
           <img src="{safe_banner}"
-               alt="Occasions"
-               width="600"
-               style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none;" />
+               alt="Occasions London"
+               width="240"
+               style="display:inline-block;width:240px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;" />
         </td></tr>
         """.strip()
     else:
