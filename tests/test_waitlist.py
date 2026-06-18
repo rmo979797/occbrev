@@ -232,6 +232,41 @@ def test_admin_endpoint_with_admin_token_works():
     assert isinstance(r.json(), list)
 
 
+def test_admin_delete_removes_signup():
+    """Hard-delete endpoint removes the row and is idempotent on unknown ids."""
+    # Seed a row via the public endpoint so the test mirrors production behaviour.
+    # The public POST intentionally never returns the id (existence-leak defence),
+    # so we look it up from the DB to get the id under test.
+    email = f"deleteme-{uuid.uuid4().hex[:6]}@example.com"
+    payload = _supplier_payload(email=email)
+    created = client.post("/api/waitlist/supplier", json=payload)
+    assert created.status_code == 201
+    with SessionLocal() as db:
+        row = db.query(WaitlistSignup).filter_by(email=email).first()
+        assert row is not None
+        new_id = row.id
+
+    # Unauthenticated delete is rejected.
+    r = client.delete(f"/api/waitlist/admin/{new_id}")
+    assert r.status_code in (401, 403)
+
+    # Authenticated delete returns 204 and the row is gone.
+    r = client.delete(
+        f"/api/waitlist/admin/{new_id}",
+        auth=("testadmin", "test-password-do-not-use-in-prod"),
+    )
+    assert r.status_code == 204
+    with SessionLocal() as db:
+        assert db.query(WaitlistSignup).filter_by(id=new_id).first() is None
+
+    # Deleting again (or a never-existed id) is idempotent — also 204.
+    r = client.delete(
+        f"/api/waitlist/admin/{new_id}",
+        auth=("testadmin", "test-password-do-not-use-in-prod"),
+    )
+    assert r.status_code == 204
+
+
 # ---------------------------------------------------------------------------
 # IP + UA capture
 # ---------------------------------------------------------------------------

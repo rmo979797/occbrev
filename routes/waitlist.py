@@ -569,3 +569,24 @@ def admin_list_waitlist(
     if role in {"supplier", "customer"}:
         q = q.filter(WaitlistSignup.role == role)
     return q.order_by(WaitlistSignup.created_at.desc()).all()
+
+
+@router.delete("/admin/{signup_id}", status_code=204)
+def admin_delete_waitlist(
+    signup_id: str,
+    db: Session = Depends(get_db),
+    admin: str = Depends(require_admin),
+):
+    """Admin-only hard delete of a waitlist row.
+
+    Used for removing internal test entries and for honouring GDPR erasure
+    requests. There's no audit log because the whole point is to leave no
+    trace of the row \u2014 if you need provenance, export the admin list
+    before deleting.
+    """
+    row = db.query(WaitlistSignup).filter(WaitlistSignup.id == signup_id).first()
+    if row is None:
+        # 204 either way \u2014 idempotent. Don't leak whether the id existed.
+        return
+    db.delete(row)
+    db.commit()
